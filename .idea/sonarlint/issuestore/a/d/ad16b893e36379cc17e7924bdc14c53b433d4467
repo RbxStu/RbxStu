@@ -1,0 +1,18 @@
+
+{	cpp:S5416";"using" should be preferred to "typedef" for type aliasing.(è¼ìĞşÿÿÿÿJ$c0a59e8f-ab55-4457-96c0-6ea5e0f781af
+u	cpp:S5416";"using" should be preferred to "typedef" for type aliasing.(ıÜ“|J$2f846623-70fe-4d19-802a-b2e3358751cb
+È	cpp:S6147 "ŒEncapsulate this undiscriminated union inside a class that makes sure only one alternative is accessed or replace it with an "std::variant".(›ïÚÚJ$c7c0e1f1-851d-49df-b60a-d446f9a3460c
+v	cpp:S5416 ";"using" should be preferred to "typedef" for type aliasing.(›ïÚÚJ$88ded98d-28c2-4811-9900-613979ea09cb
+{	cpp:S5416,";"using" should be preferred to "typedef" for type aliasing.(ÃåÓÊùÿÿÿÿJ$ff850b34-b5a5-4efc-8df4-3dbea2083874
+|	cpp:S5416æ";"using" should be preferred to "typedef" for type aliasing.(Ç¶êîøÿÿÿÿJ$0970e2ca-1c00-4e2d-9930-61a511f66b29
+w	cpp:S5416ë";"using" should be preferred to "typedef" for type aliasing.(ÈâªôJ$5232d073-85a1-47d9-8b5c-7a138d7d9e5c
+w	cpp:S5416ı";"using" should be preferred to "typedef" for type aliasing.(øÑÑ°J$cebe83a4-75f4-4aeb-8314-4e3f9f44f959
+w	cpp:S5416Œ";"using" should be preferred to "typedef" for type aliasing.(¤ô„ùJ$d95a131a-8f21-44de-a29a-d3358a870cde
+š	cpp:S1820›"^Refactor this structure so it has no more than 20 fields, rather than the 33 it currently has.(Æé¿ÂJ$4ee4f2ab-710f-4e20-bd5f-788dfaf0c543
+w	cpp:S5416›";"using" should be preferred to "typedef" for type aliasing.(Æé¿ÂJ$7a11772b-811d-4fd4-a3fe-e029fb8a560c
+|	cpp:S5416Ë";"using" should be preferred to "typedef" for type aliasing.(âê”¹ùÿÿÿÿJ$67705e49-77c7-4122-bdfe-d63fdf388644
+v	cpp:S5416Ö";"using" should be preferred to "typedef" for type aliasing.(±å»J$caab0137-130a-44bb-a68a-3bc0e7d8df25
+|	cpp:S5416ğ";"using" should be preferred to "typedef" for type aliasing.(¤şÓ…ûÿÿÿÿJ$0cd254e1-7e48-4da2-b87c-8451372107a0
+|	cpp:S5416‘";"using" should be preferred to "typedef" for type aliasing.(¾Š¾ÚşÿÿÿÿJ$d3e01012-c932-41b4-8325-0e4630822212
+w	cpp:S5416˜";"using" should be preferred to "typedef" for type aliasing.(³à½J$e450fe8c-a309-45c2-9fc2-54d05f1958a7
+|	cpp:S5416´";"using" should be preferred to "typedef" for type aliasing.(æôÀœúÿÿÿÿJ$00f8969b-dae9-46a6-88dd-5523567ee018

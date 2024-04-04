@@ -1,0 +1,108 @@
+
+s	cpp:S5028p"8Replace this macro by "const", "constexpr" or an "enum".(³¹½ñJ$901d57bc-3673-4b86-89be-261da774cf62
+y	cpp:S5028ˆ"8Replace this macro by "const", "constexpr" or an "enum".(İëÏ‰øÿÿÿÿJ$fcd384f7-72b0-4499-90c9-0bf79eb773ce
+p	cpp:S1135"4Complete the task associated to this "TODO" comment.(ÄœÑñJ$bd4b98a5-605f-4bc0-bfe6-e36ead4e2b2e
+p	cpp:S1135ï"4Complete the task associated to this "TODO" comment.(£÷½¾J$2cc72e6b-852a-402d-bc95-10147daee0f7
+o	cpp:S1135ˆ"4Complete the task associated to this "TODO" comment.(Ì×üJ$334c7bc4-1fcb-4a60-9871-7936981d828d
+p	cpp:S1135‘"4Complete the task associated to this "TODO" comment.(Ú—¢ÆJ$221e5e78-a3fa-4006-a4a8-21907ad2c9d9
+p	cpp:S1135¬"4Complete the task associated to this "TODO" comment.(Ú—¢ÆJ$f09fa127-3dca-4e1c-a006-0f7b992d6a6c
+`	cpp:S1117÷"$declaration shadows a local variable(€¾êæJ$c93d67d0-0510-4b68-90f1-5625c7335627
+`	cpp:S1117…"$declaration shadows a local variable(§ïÀ‰J$5874ce3c-d290-4d56-8458-a5eb1e3469cf
+`	cpp:S1117"$declaration shadows a local variable(€¾êæJ$817d13ad-cb9c-4502-a2f7-ac113f8a1331
+‰	cpp:S5205Œ"MReplace this function pointer with a template parameter or a "std::function".(ö€ëJ$d5e27aec-2305-460f-891c-7ed21bde7ff9
+¬	cpp:S1116"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(úµĞıÿÿÿÿJ$921a64d7-78e6-46ee-b2a7-9cda226e2007
+‘	cpp:S3776Á"URefactor this function to reduce its Cognitive Complexity from 682 to the 25 allowed.(Î·±çJ$b56e3b83-3a6c-4c29-8778-ef87eaf1183e
+cpp:S134µ"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(ÅùˆÌşÿÿÿÿJ$1c090ca1-7b6b-4b12-880f-351d48f37baa
+cpp:S134â"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(¯…èôşÿÿÿÿJ$b2fa1c6e-fabc-4570-aa19-e6784eb897c8
+cpp:S134ê"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(ô¢°„üÿÿÿÿJ$6d6cfb24-1e7e-4fca-9187-9b5fa5268d98
+cpp:S134€"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(Ì×²ÿÿÿÿÿJ$bffcb33f-6fd1-463a-b845-2953a9a83409
+ˆcpp:S134”"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(Ä•î…J$eb607653-0467-428c-afe5-6844b47f2eff
+cpp:S134ª"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(Ì×²ÿÿÿÿÿJ$851b91a6-f691-4e63-97bc-7d740d31d91d
+cpp:S134”"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(¤’¿•úÿÿÿÿJ$c945f8f0-234e-4e1b-903d-6785520c80f5
+cpp:S134¢"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(«ô£“şÿÿÿÿJ$f33f1b92-056d-4dfd-ab80-50d39b7461a1
+cpp:S134ş"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(¤’¿•úÿÿÿÿJ$985f9e9b-938a-472e-a257-fab46e31d27b
+cpp:S134Œ	"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(«ô£“şÿÿÿÿJ$592eb952-9744-45c4-8559-88815289ef00
+cpp:S134é"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(§‹øØÿÿÿÿÿJ$8e306e02-aaa4-45ca-bfa3-e96b021e45ee
+cpp:S134’"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(â×ßüÿÿÿÿJ$ed32714f-e72b-4f38-9845-68045bf4912b
+ˆcpp:S134Ÿ"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(¢˜½¢J$446a7298-11a3-4969-803e-4a2d00faef7f
+cpp:S134²"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(ÓÏÑğüÿÿÿÿJ$89ba0f29-6ecc-4ed7-80a8-3f95e757a80f
+ˆcpp:S134š"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(ÄÆ¼ÙJ$92a40096-e6fa-4f81-bf79-b54d1f53ed2f
+ˆcpp:S134Å"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(ÄÆ¼ÙJ$deb63dd3-cd79-4fd3-8f01-d629544f2859
+ˆcpp:S134ğ"MRefactor this code to not nest more than 3 if|for|do|while|switch statements.(ÄÆ¼ÙJ$c9569c64-c6f2-4590-bc1e-4d88994b5e22
+r	cpp:S1066ï"1Merge this "if" statement with the enclosing one.(÷èÇÿùÿÿÿÿJ$94dabcdb-ff03-4308-8691-67e6e0959f74
+U	cpp:S4962ğ"Use the "nullptr" literal.(â¢óSJ$7b5cb429-d4ad-43e2-91fc-9cf8a381c440
+y	cpp:S1479€"8Reduce the number of switch cases from 84 to at most 30.(£ê¨×ùÿÿÿÿJ$c1f37eb4-32a7-47cf-8cbe-35fc20849732
+c	cpp:S5827¶"'Replace the redundant type with "auto".(½Ê¦J$e85baeec-0ad3-4451-9f54-85c4f81b98ad
+V	cpp:S4962Ç"Use the "nullptr" literal.(­¸ÛŸJ$f394c47b-1681-4858-aed5-9ff5d2ad84d6
+ˆcpp:S912È"HRemove any side effects from right hand operands of logical && operator.(ÆÜ£úÿÿÿÿJ$00816a6c-34b2-4bc4-b34a-3cda3c26a22a
+u	cpp:S6022Ú"4Use "std::byte" for byte-oriented data manipulation.(£ş‡ŞûÿÿÿÿJ$41d8ce11-a699-45af-81e1-a59ca90a8ca7
+c	cpp:S5827"'Replace the redundant type with "auto".(½Ê¦J$16be44c0-3dd0-46ae-934a-ac9fa4239270
+V	cpp:S4962®"Use the "nullptr" literal.(­¸ÛŸJ$c82c9528-e134-434c-ad79-157a5174e729
+ˆcpp:S912¯"HRemove any side effects from right hand operands of logical && operator.(Ë„ˆŒÿÿÿÿÿJ$4cdba72c-6e0e-4a1f-8e7c-d0eddedb90fb
+c	cpp:S5827Ò"'Replace the redundant type with "auto".(ÑÓÒÔJ$2f1bf0bc-fb33-4c18-bd25-f1f9c791d9ee
+c	cpp:S5827î"'Replace the redundant type with "auto".(ÑÓÒÔJ$5b6ac602-5d62-4685-aae3-7cad6e39898a
+[	cpp:S4962æ"Use the "nullptr" literal.(³èÙúşÿÿÿÿJ$3cc4b25a-12a7-4278-8550-6151b29d2773
+V	cpp:S4962ç"Use the "nullptr" literal.(ı¢ÜêJ$1b76c765-a633-4fb3-bb7e-c5249189a51c
+ˆcpp:S912ğ"HRemove any side effects from right hand operands of logical && operator.(÷öéÏüÿÿÿÿJ$420338cf-319a-4e93-a79a-2e99eac45ea8
+ˆcpp:S912ğ"HRemove any side effects from right hand operands of logical && operator.(÷öéÏüÿÿÿÿJ$1d9e52e1-c2ba-4586-8220-c71cc8cdaaf2
+[	cpp:S4962…"Use the "nullptr" literal.(¥ıÖùûÿÿÿÿJ$b515fc08-2f54-4571-a38e-884865ed4b44
+[	cpp:S4962Í"Use the "nullptr" literal.(ş×±ÁşÿÿÿÿJ$85663e39-ac22-4660-9c3e-73f18422fc84
+mcpp:S886"2Refactor this loop so that it is less error-prone.(Œ œ˜J$27925451-a291-46c2-9dbe-8f43dbedc605
+mcpp:S886§"2Refactor this loop so that it is less error-prone.(Œ œ˜J$d7fc95df-7235-4815-a223-579edc35321a
+‚cpp:S999¾"GThis goto statement must be replaced by a standard iteration statement.(Ö¡„J$c5e2eed8-0fc3-49d4-8830-f41cefa99768
+h	cpp:S5827°"'Replace the redundant type with "auto".(ªÌªëúÿÿÿÿJ$07f1e906-cc7c-4997-baa5-db1d036a1a2b
+h	cpp:S5827š	"'Replace the redundant type with "auto".(ªÌªëúÿÿÿÿJ$77c2631e-6223-48c8-9e1e-998e5e181bd5
+V	cpp:S4962»
+"Use the "nullptr" literal.(­¸ÛŸJ$66ddbfc8-67b9-4acb-ba20-d4bcf737f8df
+‚cpp:S912¼
+"HRemove any side effects from right hand operands of logical && operator.(›¢ÆlJ$a8c1475c-bd0e-47a2-b123-e4581b9e9204
+V	cpp:S4962á
+"Use the "nullptr" literal.(­¸ÛŸJ$53bc5aa8-9286-47cf-ac79-cb89b8a1663d
+ˆcpp:S912â
+"HRemove any side effects from right hand operands of logical && operator.(¶Ø¤šıÿÿÿÿJ$788c646c-6410-4667-8492-c90bcd9719ab
+h	cpp:S5827‚"'Replace the redundant type with "auto".(Ü íûşÿÿÿÿJ$7ea819e6-01cd-43be-9a8b-9377d3cff83b
+b	cpp:S5827‹"'Replace the redundant type with "auto".(—â—}J$a4fa2c31-5fe6-44e6-9dde-e1bfa0a7ea6f
+V	cpp:S4962’"Use the "nullptr" literal.(­¸ÛŸJ$97ce872e-78d6-4782-9822-47e2099a93d7
+ƒcpp:S912“"HRemove any side effects from right hand operands of logical && operator.(µàñ¹J$430009a7-bc4f-4619-ba3b-3f443c6f6499
+h	cpp:S5827³"'Replace the redundant type with "auto".(Ü íûşÿÿÿÿJ$6f0858ec-afd5-4b1a-9887-5b4e6bcbdc27
+b	cpp:S5827¼"'Replace the redundant type with "auto".(—â—}J$eb2b4144-0bec-4c2f-a71f-32d30c328fbe
+V	cpp:S4962Ã"Use the "nullptr" literal.(­¸ÛŸJ$f0f264a1-a7fb-4de2-9d6f-0c97e49b2195
+ˆcpp:S912Ä"HRemove any side effects from right hand operands of logical && operator.(‘êş©ùÿÿÿÿJ$df6a292e-1cda-4e8d-a699-78be10c5a963
+h	cpp:S5827ä"'Replace the redundant type with "auto".(Ü íûşÿÿÿÿJ$c3ec5fee-5fd3-43c8-b300-cdbf58670c39
+V	cpp:S4962ì"Use the "nullptr" literal.(­¸ÛŸJ$c8ea83c5-88c0-476a-be3b-d52ecb346cb7
+ƒcpp:S912í"HRemove any side effects from right hand operands of logical && operator.(¨‰şÒJ$667a0d04-54af-401a-987a-4d10360e76a4
+b	cpp:S5827Ó"'Replace the redundant type with "auto".(‘î«>J$b5efd838-7c59-42a3-af10-fe549fb60587
+V	cpp:S4962Ø"Use the "nullptr" literal.(­¸ÛŸJ$04bbf070-a9f5-4a01-a544-9d4feab1b1ff
+ˆcpp:S912Ù"HRemove any side effects from right hand operands of logical && operator.(¯àÒìùÿÿÿÿJ$ea035776-2379-48a3-b8af-ea476c52e984
+h	cpp:S5827ù"'Replace the redundant type with "auto".(ÊçæúÿÿÿÿJ$64c76633-f650-43c3-b0ac-f861741b601e
+V	cpp:S4962ş"Use the "nullptr" literal.(­¸ÛŸJ$17f9403d-7ffc-4a22-8aaf-fa93c5dffe39
+ˆcpp:S912ÿ"HRemove any side effects from right hand operands of logical && operator.(³äöğùÿÿÿÿJ$45b063ca-9319-4d2b-b69c-e9f9be1c88e2
+b	cpp:S5827Ÿ"'Replace the redundant type with "auto".(‘î«>J$f3af3ce3-b28d-46f9-a35c-21ce28ec1e8c
+V	cpp:S4962¦"Use the "nullptr" literal.(­¸ÛŸJ$13767a86-9033-4ce7-ab01-f23efba25bf4
+ƒcpp:S912§"HRemove any side effects from right hand operands of logical && operator.(ªê×ÓJ$1dbd9934-71e3-4d23-83b0-d63f520fad20
+ˆ	cpp:S3358Ú"GExtract this nested conditional operator into an independent statement.(ÕÀ¬ªøÿÿÿÿJ$a3160363-6798-4c43-8500-f985bd25c25b
+ˆ	cpp:S3358Ú"GExtract this nested conditional operator into an independent statement.(ÕÀ¬ªøÿÿÿÿJ$0bf43eb1-f459-42b0-845e-be4238c80072
+V	cpp:S4962¶"Use the "nullptr" literal.(­¸ÛŸJ$86af9335-118d-4c8e-8aad-7d9dbac0d32c
+ƒcpp:S912·"HRemove any side effects from right hand operands of logical && operator.(š×ş¤J$535a45e0-c891-481f-a721-f4b0449ee323
+ƒ	cpp:S3358µ"GExtract this nested conditional operator into an independent statement.(Ì¹“ÀJ$ba83504a-c0f1-4810-9dce-538cf81aefdc
+ˆ	cpp:S3358Ø"GExtract this nested conditional operator into an independent statement.(­üŞ…ÿÿÿÿÿJ$1cfb499a-2430-48ae-bad1-58f5ee687bda
+h	cpp:S5827‹"'Replace the redundant type with "auto".(íÕİ²şÿÿÿÿJ$a4cc8117-26f3-412d-b3d1-af09680089cf
+‚cpp:S999"GThis goto statement must be replaced by a standard iteration statement.(Ö¡„J$0961ca1d-20be-4f25-92c0-0b250aa49656
+h	cpp:S5827ö"'Replace the redundant type with "auto".(úá£’ùÿÿÿÿJ$21c8bd9f-7668-4b85-9433-32ba5adf75ff
+[	cpp:S4962—"Use the "nullptr" literal.(€Ì³ŒùÿÿÿÿJ$f5822d35-2cfd-4acb-8551-f8a391a96762
+[	cpp:S4962‡"Use the "nullptr" literal.(¨ÂÂîüÿÿÿÿJ$5372f719-5bdb-4186-89cd-cf01408b130c
+«	cpp:S5350â"cMake the type of this variable a pointer-to-const. The current type of "ccl" is "struct Closure *".(¶È°Úùÿÿÿÿ8ÔÌ˜¸ê1J$52415236-4868-424a-a603-c05f4a98be4d
+®	cpp:S1116ï"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(ùõ‘§8ÕÌ˜¸ê1J$4f1ab74d-8238-4ba3-8abb-c9f94b1c94c1
+b	cpp:S4962è"Use the "nullptr" literal.(ş×±Áşÿÿÿÿ8ÚÌ˜¸ê1J$8a5d385d-ea37-4231-88ec-13bacc4575e6
+¢	cpp:S5350ó"_Make the type of this variable a pointer-to-const. The current type of "p" is "struct Proto *".(›¶¤¹8ÜÌ˜¸ê1J$1e670b0c-13a4-4dad-9478-a4207a13dbb1
+±	cpp:S5350÷"iMake the type of this variable a pointer-to-const. The current type of "argend" is "struct lua_TValue *".(¨Ó†°ùÿÿÿÿ8İÌ˜¸ê1J$46a1101b-ca34-463e-a07f-413b1460e6b2
+¯	cpp:S5350“"gMake the type of this variable a pointer-to-const. The current type of "vali" is "struct lua_TValue *".(¸»‹şÿÿÿÿ8âÌ˜¸ê1J$b7ead639-e6b0-4661-907b-b1f0023227e9
+ª	cpp:S5350”"iMake the type of this variable a pointer-to-const. The current type of "valend" is "struct lua_TValue *".(È„ÉùÿÿÿÿJ$ae06ee23-c570-45b4-9653-f59c2b3ef2eb
+tcpp:S886—"2Refactor this loop so that it is less error-prone.(Œ œ˜8ãÌ˜¸ê1J$6b91a6fd-d19b-46aa-b123-1b24f12ae9a1
+®	cpp:S1116˜"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(áêó8äÌ˜¸ê1J$7a2c97cb-c0fc-4f9e-aa05-8a8d71987461
+°cpp:S995¥"iMake the type of this parameter a pointer-to-const. The current type of "first" is "struct lua_TValue *".(ê£ÛÈùÿÿÿÿ8ëÌ˜¸ê1J$7888be7e-d43a-40fb-810d-7c3f85917550
+ª	cpp:S5350®"gMake the type of this variable a pointer-to-const. The current type of "vali" is "struct lua_TValue *".(‘Ç¹¢8ëÌ˜¸ê1J$3d63d48a-cf6a-4ba1-ac08-7df056b43d01
+ª	cpp:S5350¯"iMake the type of this variable a pointer-to-const. The current type of "valend" is "struct lua_TValue *".(È„ÉùÿÿÿÿJ$444091bf-18b1-4004-8778-8c2c8c71a934
+tcpp:S886²"2Refactor this loop so that it is less error-prone.(ˆŠ‹É8ìÌ˜¸ê1J$df18adfe-a670-4387-ad22-334b25c46abb
+®	cpp:S1116³"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(áêó8íÌ˜¸ê1J$e5bf453c-5026-4f02-8c33-1fddf1e048cb
+u	cpp:S5008Œ"9Replace this use of "void *" with a more meaningful type.(ö€ëJ$ed2ea3db-b0c3-4e9f-bd86-3916ef9d0865

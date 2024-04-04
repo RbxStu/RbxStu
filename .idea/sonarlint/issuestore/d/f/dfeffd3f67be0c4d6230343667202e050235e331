@@ -1,0 +1,38 @@
+
+x	cpp:S5028%"8Replace this macro by "const", "constexpr" or an "enum".(™ëÒûÿÿÿÿJ$da0ebe92-1e1b-4941-8aa2-e9a5064fd631
+_	cpp:S1117¸"$declaration shadows a local variable(€¸Ê@J$1c324cfb-525c-4eec-b254-ee6c6354e781
+Z	cpp:S4962+"Use the "nullptr" literal.(¨ÿ¿¼üÿÿÿÿJ$28e8abe9-16ed-4902-b672-a4f9d6f21679
+Z	cpp:S4962,"Use the "nullptr" literal.(Öî²™üÿÿÿÿJ$d662e420-f804-48e9-a6cb-a93de0082bb1
+U	cpp:S4962-"Use the "nullptr" literal.(ñùÂºJ$f796c967-68c5-4d93-a443-cd7fb43c7689
+S	cpp:S36300"2Replace "reinterpret_cast" with a safer operation.(äÿš˜şÿÿÿÿ8´§“¸ê1
+g	cpp:S5827<"'Replace the redundant type with "auto".(œ¿ö‡şÿÿÿÿJ$fedd9fef-afe9-4f62-8f75-2ae7c736a133
+ cpp:S995 "`Make the type of this parameter a pointer-to-const. The current type of "t" is "struct Table *".(±¥ÊûøÿÿÿÿJ$7b33f796-3600-47f4-a138-6434d91c7eff
+§cpp:S995 "gMake the type of this parameter a pointer-to-const. The current type of "key" is "struct lua_TValue *".(±¥ÊûøÿÿÿÿJ$bcc21e0f-b3ab-4eec-b6a6-adb4d23fac3b
+¢	cpp:S5350¨"aMake the type of this variable a pointer-to-const. The current type of "n" is "struct LuaNode *".(š°üñùÿÿÿÿJ$c348e417-6deb-456b-9519-1b66297bc80d
+¬	cpp:S1116½"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(º¤Ş¥ıÿÿÿÿJ$fbf37fd3-24ec-4e0d-8e72-011c76ebbca5
+§	cpp:S1116¾"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(íúóJ$6753fa44-1294-4412-95ed-30c69c2e44a9
+§	cpp:S1116Ä"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(¥Ù¸ĞJ$87fb9a8a-5b84-4f8f-9206-74d38d75b7ca
+¬	cpp:S1116Å"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(·ø“€şÿÿÿÿJ$cf30bd04-323a-4d26-9d39-055533981626
+šcpp:S995Ú"ZMake the type of this parameter a pointer-to-const. The current type of "nums" is "int *".(¶ñÍ˜üÿÿÿÿJ$36944754-d9be-4bc0-b7b2-7e048b71ee4f
+c	cpp:S5827”"'Replace the redundant type with "auto".(ùôì«J$5e6b14de-488c-44ee-81f3-4dcc94413b58
+¢	cpp:S5350–"aMake the type of this variable a pointer-to-const. The current type of "n" is "struct LuaNode *".(æË¬àşÿÿÿÿJ$20619a42-0e4e-4168-a2e9-9e9816b2ffa8
+¬	cpp:S1116ñ"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(÷ßÓøÿÿÿÿJ$71fc9856-7310-4677-9aa1-48dff2b18f63
+¬	cpp:S1116ò"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(ØËõıÿÿÿÿJ$2567e5e2-9b2d-431d-8a44-83bbf5825c81
+V	cpp:S4962‰"Use the "nullptr" literal.(¶¡¡ƒJ$de41e995-5fbb-4b07-8429-2aed7323fa9a
+„	cpp:S6004¨"CUse the init-statement to declare "aextra" inside the if statement.(´ıöäûÿÿÿÿJ$a0ec6cf6-08c7-4800-8bd0-932038a9414e
+c	cpp:S5827½"'Replace the redundant type with "auto".(å¨³’J$b6ff72c7-fd0a-4d20-be1b-5fc87ee34795
+[	cpp:S4962¿"Use the "nullptr" literal.(ñäÊÀùÿÿÿÿJ$3820dc33-005a-4e80-86f4-c5425b6474e0
+[	cpp:S4962Á"Use the "nullptr" literal.(“¸«ÉüÿÿÿÿJ$abee8e1a-6472-495e-a0c0-98f16ee51910
+V	cpp:S4962à"Use the "nullptr" literal.(è¶›…J$05def669-f5d7-466a-9ed1-28e01e324c4e
+[	cpp:S4962ö"Use the "nullptr" literal.(·ÜĞüÿÿÿÿJ$12168bb0-10b4-492c-ba8c-f726ad197797
+c	cpp:S5827£"'Replace the redundant type with "auto".(”ã×J$b9dadf0d-cff9-48a0-86b7-4005d8c42a67
+§	cpp:S1116"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(„ĞªŠJ$3c7e3238-b9b8-410a-9b35-81c099458328
+¬	cpp:S1116”"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(Û§ç÷úÿÿÿÿJ$2d00c9c8-21db-4996-b955-6935cc107e8a
+§	cpp:S1116¹"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(Ü ÒƒJ$a4564495-6376-4442-a6ba-883f87f08da1
+fcpp:S872¸",Reconsider this operator for 'bool' operand.(€¸Ê@J$72acc0cb-cb17-4770-8740-8a588851cb77
+c	cpp:S5827Ã"'Replace the redundant type with "auto".(å¨³’J$8666237e-7886-470e-9a5b-20e64192ddbf
+[	cpp:S4962Ç"Use the "nullptr" literal.(“¸«ÉüÿÿÿÿJ$7f35173d-888e-4f0e-8114-5fa1492dfa04
+§	cpp:S1116Ò"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(é… ¨J$6eac2880-093c-40f4-bf03-023435666eba
+c	cpp:S5827î"'Replace the redundant type with "auto".(ÇİËïJ$edb79021-8ac7-46b8-8c60-ea648d514da3
+t	cpp:S5008:"9Replace this use of "void *" with a more meaningful type.(›ğğJ$3bf8fbfb-6b5b-4c0f-9dea-ce2113568c8e
+T	cpp:S3519c"8Memory copy function accesses out-of-bound array element(¬³İ°8Šõ“¸ê1
