@@ -1,0 +1,8 @@
+
+M	cpp:S5028"8Replace this macro by "const", "constexpr" or an "enum".(ä¼ƒ
+L	cpp:S5028"8Replace this macro by "const", "constexpr" or an "enum".(Ñ³ôV
+U	cpp:S5416";"using" should be preferred to "typedef" for type aliasing.(ø€Ùéùÿÿÿÿ
+U	cpp:S54169";"using" should be preferred to "typedef" for type aliasing.(»×ˆ—øÿÿÿÿ
+y	cpp:S1820£"^Refactor this structure so it has no more than 20 fields, rather than the 34 it currently has.(„Ú™Åúÿÿÿÿ
+V	cpp:S5416£";"using" should be preferred to "typedef" for type aliasing.(„Ú™Åúÿÿÿÿ
+t	cpp:S1820ç"^Refactor this structure so it has no more than 20 fields, rather than the 25 it currently has.(“úÈ

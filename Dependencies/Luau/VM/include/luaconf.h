@@ -63,7 +63,7 @@
 
 // Can be used to reconfigure internal error handling to use longjmp instead of C++ EH
 #ifndef LUA_USE_LONGJMP
-#define LUA_USE_LONGJMP 0
+#define LUA_USE_LONGJMP 1
 #endif
 
 // LUA_IDSIZE gives the maximum size for the description of the source
@@ -103,12 +103,12 @@
 
 // number of valid Lua lightuserdata tags
 #ifndef LUA_LUTAG_LIMIT
-#define LUA_LUTAG_LIMIT 128
+#define LUA_LUTAG_LIMIT 128                                     // Correct
 #endif
 
 // upper bound for number of size classes used by page allocator
 #ifndef LUA_SIZECLASSES
-#define LUA_SIZECLASSES 32
+#define LUA_SIZECLASSES 40
 #endif
 
 // available number of separate memory categories

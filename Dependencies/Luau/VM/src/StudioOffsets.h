@@ -9,13 +9,17 @@
 #define RebaseAddress(x) x - 0x140000000 + reinterpret_cast<uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe"))
 
 namespace RBX::Studio::Offsets {
-    const static std::uintptr_t luau_execute = RebaseAddress(0x142f5fb90);      // Search for "C Stack Overflow"
-    const static std::uintptr_t luau_load = RebaseAddress(0x142f697a0);         // Search for "Bytecode Version"
+    const static std::uintptr_t luau_execute = RebaseAddress(0x142f5fb90);          // Search for "C Stack Overflow"
+    const static std::uintptr_t luau_load = RebaseAddress(0x142f697a0);             // Search for "Bytecode Version"
+    const static std::uintptr_t lua_newthread = RebaseAddress(0x142f511a0);         // search for coroutine.wrap
 
     const static std::uintptr_t _luaO_nilobject = RebaseAddress(
-                                                          0x1465dd4b0);   // Get to lua_pushvalue and get inside of pseudo2addr, you will find the data xref.
+                                                          0x1465dd4b0);             // Get to lua_pushvalue and get inside of pseudo2addr, you will find the data xref.
     const static std::uintptr_t _luaH_dummynode = RebaseAddress(
-                                                          0x1465dd358);   // Find " ,"metatable": ", and go to the top of the second xref, a ldebug function. It will contain two references to luaH_dummynode.
+                                                          0x1465dd358);             // Find " ,"metatable": ", and go to the top of the second xref, a ldebug function. It will contain two references to luaH_dummynode.
+
+    // The way we get our lua state is the classic, hooking.
+    const static std::uintptr_t pseudo2addr = RebaseAddress(0x142f53230);
 }
 
 struct lua_State;
@@ -25,6 +29,8 @@ namespace FunctionTypes {
                                              int32_t bytecodeSize,
                                              int32_t env);
     using luau_execute = void (__fastcall *)(struct lua_State *L);
+    using pseudo2addr = void *(__fastcall *)(lua_State *L, int32_t lua_index);
+    using lua_newthread = lua_State *(__fastcall *)(lua_State *L);
 };
 
 namespace RBX::Studio::Functions {

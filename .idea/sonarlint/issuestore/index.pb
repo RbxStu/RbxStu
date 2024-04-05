@@ -17,3 +17,19 @@ W
 'Dependencies/Luau/VM/src/lvmexecute.cpp,7\9\797b27af03a05cbdffc6bb37887639c60859cd62
 >
 CMakeLists.txt,9\a\9a2aa4db38d3115ed60da621e012c0efc0172aae
+8
+main.cpp,6\8\682a50d19e416195436708e48c7761923b8d6651
+=
+Execution.cpp,c\8\c8e76ac458d7869b0ee598f448c6d91bad339248
+=
+Execution.hpp,f\c\fc8a86f6633fd0026647eae96f54ce60b14a1da1
+8
+Hook.cpp,0\b\0b9e907059c1c0769dadd25da507b0d7b9c6412c
+6
+Hook.h,c\c\cc9be8f4de8a28d94196764c64ecd16f6d52405d
+P
+ Dependencies/Luau/CMakeLists.txt,8\e\8e8b97b7a96c5a14c3efc98cdaa493a3cbff9323
+S
+#Dependencies/Luau/VM/src/lstate.cpp,7\f\7f913e169ad9d5f82b59d62944c01b78fb3b7587
+Q
+!Dependencies/Luau/VM/src/lstate.h,4\1\419ad2a11afced6a68d9746501279da8314131ae

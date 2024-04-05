@@ -76,3 +76,7 @@ void Scheduler::InitializeWith(lua_State *L) {
     this->m_lsInitialisedWith = L;
 }
 
+bool Scheduler::IsInitialized() {
+    return m_lsInitialisedWith != nullptr;
+}
+

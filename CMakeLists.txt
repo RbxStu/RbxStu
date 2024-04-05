@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.26)
 project(Module)
 
+add_definitions(-DLUAI_GCMETRICS)   # Force GC metrics on Luau.
 set(PROJECT_NAME Module)
 set(CMAKE_CXX_STANDARD 23)
 
@@ -25,6 +26,9 @@ add_library(Module SHARED
         Scheduler.cpp
         Scheduler.hpp
         Security.cpp
+        Hook.cpp
+        Hook.hpp
+        Hook.hpp
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Dependencies")

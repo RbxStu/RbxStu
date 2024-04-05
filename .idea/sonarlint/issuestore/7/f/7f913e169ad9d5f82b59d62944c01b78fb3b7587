@@ -1,0 +1,39 @@
+
+U	cpp:S5416";"using" should be preferred to "typedef" for type aliasing.(ŞÿÈôşÿÿÿÿ
+i	cpp:S11725"TRemove the unused parameter "ud", make it unnamed, or declare it "[[maybe_unused]]".(‚Â©°
+mcpp:S9955"YMake the type of this parameter a pointer-to-const. The current type of "ud" is "void *".(‚Â©°
+€	cpp:S1116:"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(…ÓÇç
+/	cpp:S4962E"Use the "nullptr" literal.(Ğé¼¼
+/	cpp:S4962G"Use the "nullptr" literal.(–Áíİ
+4	cpp:S4962H"Use the "nullptr" literal.(ÇùÏ¯üÿÿÿÿ
+/	cpp:S4962L"Use the "nullptr" literal.(— •
+/	cpp:S4962M"Use the "nullptr" literal.(Ü­Úæ
+/	cpp:S4962R"Use the "nullptr" literal.(›×İÆ
+/	cpp:S4962_"Use the "nullptr" literal.(ŞÇ©
+4	cpp:S4962`"Use the "nullptr" literal.(æ°£†üÿÿÿÿ
+/	cpp:S4962b"Use the "nullptr" literal.(¿†îô
+A	cpp:S5827p"'Replace the redundant type with "auto".(®×ªëøÿÿÿÿ
+…	cpp:S1116q"kModify the macro definition so that it needs to be followed by a semicolon, or remove this empty statement.(ûÊŸéşÿÿÿÿ
+X	cpp:S6004~">Use the init-statement to declare "g" inside the if statement.(ã–Üúÿÿÿÿ
+{	cpp:S5350}"fMake the type of this variable a pointer-to-const. The current type of "g" is "struct global_State *".(–«âë
+4	cpp:S4962"Use the "nullptr" literal.(ÛÖÕ©ûÿÿÿÿ
+~cpp:S995"dMake the type of this parameter a pointer-to-const. The current type of "L" is "struct lua_State *".(È‘¤ˆşÿÿÿÿ
+c	cpp:S5205¢"MReplace this function pointer with a template parameter or a "std::function".(¯¨£ü
+5	cpp:S4962§"Use the "nullptr" literal.(ˆÑ¹³ùÿÿÿÿ
+5	cpp:S4962¨"Use the "nullptr" literal.(Œ¸¯şÿÿÿÿ
+0	cpp:S4962©"Use the "nullptr" literal.(É‰ƒ›
+0	cpp:S4962·"Use the "nullptr" literal.(Ô¨ ™
+5	cpp:S4962¿"Use the "nullptr" literal.(åèÓ’şÿÿÿÿ
+/	cpp:S4962Ã"Use the "nullptr" literal.(º´¦i
+5	cpp:S4962Ä"Use the "nullptr" literal.(âæ Öıÿÿÿÿ
+5	cpp:S4962Å"Use the "nullptr" literal.(®ÜÆÙùÿÿÿÿ
+5	cpp:S4962Ì"Use the "nullptr" literal.(Õåçİıÿÿÿÿ
+0	cpp:S4962Í"Use the "nullptr" literal.(÷Ÿ®¡
+0	cpp:S4962Ï"Use the "nullptr" literal.(€á„±
+0	cpp:S4962Ğ"Use the "nullptr" literal.(°¢Å»
+5	cpp:S4962Ò"Use the "nullptr" literal.(ÇÈÇîÿÿÿÿÿ
+/	cpp:S4962Ô"Use the "nullptr" literal.(íÇó
+0	cpp:S4962Ö"Use the "nullptr" literal.(¹çŠ›
+5	cpp:S4962æ"Use the "nullptr" literal.(ë¨£—ùÿÿÿÿ
+5	cpp:S4962ê"Use the "nullptr" literal.(áÿÚÏûÿÿÿÿ
+O	cpp:S5008¢"9Replace this use of "void *" with a more meaningful type.(¯¨£ü

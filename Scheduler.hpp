@@ -33,5 +33,7 @@ public:
 
     void InitializeWith(lua_State *L);
 
+    bool IsInitialized();
+
     lua_State *GetGlobalState();
 };
