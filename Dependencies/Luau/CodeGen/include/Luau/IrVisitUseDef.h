@@ -4,6 +4,8 @@
 #include "Luau/Common.h"
 #include "Luau/IrData.h"
 
+LUAU_FASTFLAG(LuauCodegenRemoveDeadStores4)
+
 namespace Luau
 {
 namespace CodeGen
@@ -19,10 +21,12 @@ static void visitVmRegDefsUses(T& visitor, IrFunction& function, const IrInst& i
     case IrCmd::LOAD_POINTER:
     case IrCmd::LOAD_DOUBLE:
     case IrCmd::LOAD_INT:
+    case IrCmd::LOAD_FLOAT:
     case IrCmd::LOAD_TVALUE:
         visitor.maybeUse(inst.a); // Argument can also be a VmConst
         break;
     case IrCmd::STORE_TAG:
+    case IrCmd::STORE_EXTRA:
     case IrCmd::STORE_POINTER:
     case IrCmd::STORE_DOUBLE:
     case IrCmd::STORE_INT:
@@ -115,7 +119,7 @@ static void visitVmRegDefsUses(T& visitor, IrFunction& function, const IrInst& i
         {
             if (count >= 3)
             {
-                LUAU_ASSERT(inst.d.kind == IrOpKind::VmReg && vmRegOp(inst.d) == vmRegOp(inst.c) + 1);
+                CODEGEN_ASSERT(inst.d.kind == IrOpKind::VmReg && vmRegOp(inst.d) == vmRegOp(inst.c) + 1);
 
                 visitor.useRange(vmRegOp(inst.c), count);
             }
@@ -184,7 +188,15 @@ static void visitVmRegDefsUses(T& visitor, IrFunction& function, const IrInst& i
         visitor.def(inst.b);
         break;
     case IrCmd::FALLBACK_FORGPREP:
-        visitor.use(inst.b);
+        if (FFlag::LuauCodegenRemoveDeadStores4)
+        {
+            // This instruction doesn't always redefine Rn, Rn+1, Rn+2, so we have to mark it as implicit use
+            visitor.useRange(vmRegOp(inst.b), 3);
+        }
+        else
+        {
+            visitor.use(inst.b);
+        }
 
         visitor.defRange(vmRegOp(inst.b), 3);
         break;
@@ -202,14 +214,20 @@ static void visitVmRegDefsUses(T& visitor, IrFunction& function, const IrInst& i
         visitor.use(inst.a);
         break;
 
+        // After optimizations with DebugLuauAbortingChecks enabled, CHECK_TAG Rn, tag, block instructions are generated
+    case IrCmd::CHECK_TAG:
+        if (!FFlag::LuauCodegenRemoveDeadStores4)
+            visitor.maybeUse(inst.a);
+        break;
+
     default:
         // All instructions which reference registers have to be handled explicitly
-        LUAU_ASSERT(inst.a.kind != IrOpKind::VmReg);
-        LUAU_ASSERT(inst.b.kind != IrOpKind::VmReg);
-        LUAU_ASSERT(inst.c.kind != IrOpKind::VmReg);
-        LUAU_ASSERT(inst.d.kind != IrOpKind::VmReg);
-        LUAU_ASSERT(inst.e.kind != IrOpKind::VmReg);
-        LUAU_ASSERT(inst.f.kind != IrOpKind::VmReg);
+        CODEGEN_ASSERT(inst.a.kind != IrOpKind::VmReg);
+        CODEGEN_ASSERT(inst.b.kind != IrOpKind::VmReg);
+        CODEGEN_ASSERT(inst.c.kind != IrOpKind::VmReg);
+        CODEGEN_ASSERT(inst.d.kind != IrOpKind::VmReg);
+        CODEGEN_ASSERT(inst.e.kind != IrOpKind::VmReg);
+        CODEGEN_ASSERT(inst.f.kind != IrOpKind::VmReg);
         break;
     }
 }

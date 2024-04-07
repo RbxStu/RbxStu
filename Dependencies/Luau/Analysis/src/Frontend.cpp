@@ -14,10 +14,12 @@
 #include "Luau/Scope.h"
 #include "Luau/StringUtils.h"
 #include "Luau/TimeTrace.h"
+#include "Luau/TypeArena.h"
 #include "Luau/TypeChecker2.h"
 #include "Luau/NonStrictTypeChecker.h"
 #include "Luau/TypeInfer.h"
 #include "Luau/Variant.h"
+#include "Luau/VisitType.h"
 
 #include <algorithm>
 #include <chrono>
@@ -32,12 +34,12 @@ LUAU_FASTINT(LuauTypeInferRecursionLimit)
 LUAU_FASTINT(LuauTarjanChildLimit)
 LUAU_FASTFLAG(LuauInferInNoCheckMode)
 LUAU_FASTFLAGVARIABLE(LuauKnowsTheDataModel3, false)
-LUAU_FASTFLAGVARIABLE(DebugLuauDeferredConstraintResolution, false)
+LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution)
 LUAU_FASTFLAGVARIABLE(DebugLuauLogSolverToJson, false)
-LUAU_FASTFLAGVARIABLE(DebugLuauReadWriteProperties, false)
-LUAU_FASTFLAGVARIABLE(CorrectEarlyReturnInMarkDirty, false)
-LUAU_FASTFLAGVARIABLE(LuauDefinitionFileSetModuleName, false)
-LUAU_FASTFLAGVARIABLE(LuauRethrowSingleModuleIce, false)
+LUAU_FASTFLAGVARIABLE(DebugLuauLogSolverToJsonFile, false)
+LUAU_FASTFLAGVARIABLE(DebugLuauForbidInternalTypes, false)
+LUAU_FASTFLAGVARIABLE(DebugLuauForceStrictMode, false)
+LUAU_FASTFLAGVARIABLE(DebugLuauForceNonStrictMode, false)
 
 namespace Luau
 {
@@ -165,11 +167,9 @@ LoadDefinitionFileResult Frontend::loadDefinitionFile(GlobalTypes& globals, Scop
     LUAU_TIMETRACE_SCOPE("loadDefinitionFile", "Frontend");
 
     Luau::SourceModule sourceModule;
-    if (FFlag::LuauDefinitionFileSetModuleName)
-    {
-        sourceModule.name = packageName;
-        sourceModule.humanReadableName = packageName;
-    }
+    sourceModule.name = packageName;
+    sourceModule.humanReadableName = packageName;
+
     Luau::ParseResult parseResult = parseSourceForModule(source, sourceModule, captureComments);
     if (parseResult.errors.size() > 0)
         return LoadDefinitionFileResult{false, parseResult, sourceModule, nullptr};
@@ -680,7 +680,7 @@ std::vector<ModuleName> Frontend::checkQueuedModules(std::optional<FrontendOptio
             sendItemTask(i);
         nextItems.clear();
 
-        if (FFlag::LuauRethrowSingleModuleIce && processing == 0)
+        if (processing == 0)
         {
             // Typechecking might have been cancelled by user, don't return partial results
             if (cancelled)
@@ -693,23 +693,7 @@ std::vector<ModuleName> Frontend::checkQueuedModules(std::optional<FrontendOptio
 
         // If we aren't done, but don't have anything processing, we hit a cycle
         if (remaining != 0 && processing == 0)
-        {
-            if (!FFlag::LuauRethrowSingleModuleIce)
-            {
-                // Typechecking might have been cancelled by user, don't return partial results
-                if (cancelled)
-                    return {};
-
-                // We might have stopped because of a pending exception
-                if (itemWithException)
-                {
-                    recordItemResult(buildQueueItems[*itemWithException]);
-                    break;
-                }
-            }
-
             sendCycleItemTask();
-        }
     }
 
     std::vector<ModuleName> checkedModules;
@@ -876,6 +860,7 @@ void Frontend::addBuildQueueItems(std::vector<BuildQueueItem>& items, std::vecto
 
         data.config = configResolver->getConfig(moduleName);
         data.environmentScope = getModuleEnvironment(*sourceModule, data.config, frontendOptions.forAutocomplete);
+        data.recordJsonLog = FFlag::DebugLuauLogSolverToJson;
 
         Mode mode = sourceModule->mode.value_or(data.config.mode);
 
@@ -908,7 +893,13 @@ void Frontend::checkBuildQueueItem(BuildQueueItem& item)
     SourceNode& sourceNode = *item.sourceNode;
     const SourceModule& sourceModule = *item.sourceModule;
     const Config& config = item.config;
-    Mode mode = sourceModule.mode.value_or(config.mode);
+    Mode mode;
+    if (FFlag::DebugLuauForceStrictMode)
+        mode = Mode::Strict;
+    else if (FFlag::DebugLuauForceNonStrictMode)
+        mode = Mode::Nonstrict;
+    else
+        mode = sourceModule.mode.value_or(config.mode);
     ScopePtr environmentScope = item.environmentScope;
     double timestamp = getTimestamp();
     const std::vector<RequireCycle>& requireCycles = item.requireCycles;
@@ -1116,16 +1107,8 @@ bool Frontend::isDirty(const ModuleName& name, bool forAutocomplete) const
  */
 void Frontend::markDirty(const ModuleName& name, std::vector<ModuleName>* markedDirty)
 {
-    if (FFlag::CorrectEarlyReturnInMarkDirty)
-    {
-        if (sourceNodes.count(name) == 0)
-            return;
-    }
-    else
-    {
-        if (!moduleResolver.getModule(name) && !moduleResolverForAutocomplete.getModule(name))
-            return;
-    }
+    if (sourceNodes.count(name) == 0)
+        return;
 
     std::unordered_map<ModuleName, std::vector<ModuleName>> reverseDeps;
     for (const auto& module : sourceNodes)
@@ -1181,21 +1164,73 @@ const SourceModule* Frontend::getSourceModule(const ModuleName& moduleName) cons
 ModulePtr check(const SourceModule& sourceModule, Mode mode, const std::vector<RequireCycle>& requireCycles, NotNull<BuiltinTypes> builtinTypes,
     NotNull<InternalErrorReporter> iceHandler, NotNull<ModuleResolver> moduleResolver, NotNull<FileResolver> fileResolver,
     const ScopePtr& parentScope, std::function<void(const ModuleName&, const ScopePtr&)> prepareModuleScope, FrontendOptions options,
-    TypeCheckLimits limits)
+    TypeCheckLimits limits, std::function<void(const ModuleName&, std::string)> writeJsonLog)
 {
     const bool recordJsonLog = FFlag::DebugLuauLogSolverToJson;
     return check(sourceModule, mode, requireCycles, builtinTypes, iceHandler, moduleResolver, fileResolver, parentScope,
-        std::move(prepareModuleScope), options, limits, recordJsonLog);
+        std::move(prepareModuleScope), options, limits, recordJsonLog, writeJsonLog);
 }
+
+struct InternalTypeFinder : TypeOnceVisitor
+{
+    bool visit(TypeId, const ClassType&) override
+    {
+        return false;
+    }
+
+    bool visit(TypeId, const BlockedType&) override
+    {
+        LUAU_ASSERT(false);
+        return false;
+    }
+
+    bool visit(TypeId, const FreeType&) override
+    {
+        LUAU_ASSERT(false);
+        return false;
+    }
+
+    bool visit(TypeId, const PendingExpansionType&) override
+    {
+        LUAU_ASSERT(false);
+        return false;
+    }
+
+    bool visit(TypeId, const LocalType&) override
+    {
+        LUAU_ASSERT(false);
+        return false;
+    }
+
+    bool visit(TypePackId, const BlockedTypePack&) override
+    {
+        LUAU_ASSERT(false);
+        return false;
+    }
+
+    bool visit(TypePackId, const FreeTypePack&) override
+    {
+        LUAU_ASSERT(false);
+        return false;
+    }
+
+    bool visit(TypePackId, const TypeFamilyInstanceTypePack&) override
+    {
+        LUAU_ASSERT(false);
+        return false;
+    }
+};
 
 ModulePtr check(const SourceModule& sourceModule, Mode mode, const std::vector<RequireCycle>& requireCycles, NotNull<BuiltinTypes> builtinTypes,
     NotNull<InternalErrorReporter> iceHandler, NotNull<ModuleResolver> moduleResolver, NotNull<FileResolver> fileResolver,
     const ScopePtr& parentScope, std::function<void(const ModuleName&, const ScopePtr&)> prepareModuleScope, FrontendOptions options,
-    TypeCheckLimits limits, bool recordJsonLog)
+    TypeCheckLimits limits, bool recordJsonLog, std::function<void(const ModuleName&, std::string)> writeJsonLog)
 {
     ModulePtr result = std::make_shared<Module>();
     result->name = sourceModule.name;
     result->humanReadableName = sourceModule.humanReadableName;
+
+    result->mode = sourceModule.mode.value_or(Mode::NoCheck);
 
     result->internalTypes.owningModule = result.get();
     result->interfaceTypes.owningModule = result.get();
@@ -1227,11 +1262,14 @@ ModulePtr check(const SourceModule& sourceModule, Mode mode, const std::vector<R
     cg.visitModuleRoot(sourceModule.root);
     result->errors = std::move(cg.errors);
 
-    ConstraintSolver cs{NotNull{&normalizer}, NotNull(cg.rootScope), borrowConstraints(cg.constraints), result->humanReadableName, moduleResolver,
-        requireCycles, logger.get(), limits};
+    ConstraintSolver cs{NotNull{&normalizer}, NotNull(cg.rootScope), borrowConstraints(cg.constraints), result->name, moduleResolver, requireCycles,
+        logger.get(), limits};
 
     if (options.randomizeConstraintResolutionSeed)
         cs.randomize(*options.randomizeConstraintResolutionSeed);
+
+    for (TypeId ty : cg.familyInstances)
+        cs.familyInstances.insert(ty);
 
     try
     {
@@ -1246,6 +1284,15 @@ ModulePtr check(const SourceModule& sourceModule, Mode mode, const std::vector<R
         result->cancelled = true;
     }
 
+    if (recordJsonLog)
+    {
+        std::string output = logger->compileOutput();
+        if (FFlag::DebugLuauLogSolverToJsonFile && writeJsonLog)
+            writeJsonLog(sourceModule.name, std::move(output));
+        else
+            printf("%s\n", output.c_str());
+    }
+
     for (TypeError& e : cs.errors)
         result->errors.emplace_back(std::move(e));
 
@@ -1253,7 +1300,33 @@ ModulePtr check(const SourceModule& sourceModule, Mode mode, const std::vector<R
     result->type = sourceModule.type;
     result->upperBoundContributors = std::move(cs.upperBoundContributors);
 
-    result->clonePublicInterface(builtinTypes, *iceHandler);
+    if (FFlag::DebugLuauForbidInternalTypes)
+    {
+        InternalTypeFinder finder;
+
+        finder.traverse(result->returnType);
+
+        for (const auto& [_, binding] : result->exportedTypeBindings)
+            finder.traverse(binding.type);
+
+        for (const auto& [_, ty] : result->astTypes)
+            finder.traverse(ty);
+
+        for (const auto& [_, ty] : result->astExpectedTypes)
+            finder.traverse(ty);
+
+        for (const auto& [_, tp] : result->astTypePacks)
+            finder.traverse(tp);
+
+        for (const auto& [_, ty] : result->astResolvedTypes)
+            finder.traverse(ty);
+
+        for (const auto& [_, ty] : result->astOverloadResolvedTypes)
+            finder.traverse(ty);
+
+        for (const auto& [_, tp] : result->astResolvedTypePacks)
+            finder.traverse(tp);
+    }
 
     if (result->timeout || result->cancelled)
     {
@@ -1276,6 +1349,9 @@ ModulePtr check(const SourceModule& sourceModule, Mode mode, const std::vector<R
             Luau::check(builtinTypes, NotNull{&unifierState}, NotNull{&limits}, logger.get(), sourceModule, result.get());
     }
 
+    unfreeze(result->interfaceTypes);
+    result->clonePublicInterface(builtinTypes, *iceHandler);
+
     // It would be nice if we could freeze the arenas before doing type
     // checking, but we'll have to do some work to get there.
     //
@@ -1289,12 +1365,6 @@ ModulePtr check(const SourceModule& sourceModule, Mode mode, const std::vector<R
     // bound to something by the time constraints are solved.
     freeze(result->internalTypes);
     freeze(result->interfaceTypes);
-
-    if (recordJsonLog)
-    {
-        std::string output = logger->compileOutput();
-        printf("%s\n", output.c_str());
-    }
 
     return result;
 }
@@ -1313,13 +1383,13 @@ ModulePtr Frontend::check(const SourceModule& sourceModule, Mode mode, std::vect
         {
             return Luau::check(sourceModule, mode, requireCycles, builtinTypes, NotNull{&iceHandler},
                 NotNull{forAutocomplete ? &moduleResolverForAutocomplete : &moduleResolver}, NotNull{fileResolver},
-                environmentScope ? *environmentScope : globals.globalScope, prepareModuleScopeWrap, options, typeCheckLimits, recordJsonLog);
+                environmentScope ? *environmentScope : globals.globalScope, prepareModuleScopeWrap, options, typeCheckLimits, recordJsonLog,
+                writeJsonLog);
         }
         catch (const InternalCompilerError& err)
         {
-            InternalCompilerError augmented = err.location.has_value()
-                                                  ? InternalCompilerError{err.message, sourceModule.humanReadableName, *err.location}
-                                                  : InternalCompilerError{err.message, sourceModule.humanReadableName};
+            InternalCompilerError augmented = err.location.has_value() ? InternalCompilerError{err.message, sourceModule.name, *err.location}
+                                                                       : InternalCompilerError{err.message, sourceModule.name};
             throw augmented;
         }
     }

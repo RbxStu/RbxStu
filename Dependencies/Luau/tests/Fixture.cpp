@@ -18,11 +18,13 @@
 #include <sstream>
 #include <string_view>
 #include <iostream>
+#include <fstream>
 
 static const char* mainModuleName = "MainModule";
 
 LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution);
 LUAU_FASTFLAG(DebugLuauFreezeArena);
+LUAU_FASTFLAG(DebugLuauLogSolverToJsonFile)
 
 extern std::optional<unsigned> randomSeed; // tests/main.cpp
 
@@ -115,7 +117,17 @@ std::optional<ModuleInfo> TestFileResolver::resolveModule(const ModuleInfo* cont
 
 std::string TestFileResolver::getHumanReadableModuleName(const ModuleName& name) const
 {
-    return name;
+    // We have a handful of tests that need to distinguish between a canonical
+    // ModuleName and the human-readable version so we apply a simple transform
+    // here:  We replace all slashes with dots.
+    std::string result = name;
+    for (size_t i = 0; i < result.size(); ++i)
+    {
+        if (result[i] == '/')
+            result[i] = '.';
+    }
+
+    return result;
 }
 
 std::optional<std::string> TestFileResolver::getEnvironmentForModule(const ModuleName& name) const
@@ -150,6 +162,21 @@ Fixture::Fixture(bool freeze, bool prepareAutocomplete)
     Luau::freeze(frontend.globalsForAutocomplete.globalTypes);
 
     Luau::setPrintLine([](auto s) {});
+
+    if (FFlag::DebugLuauLogSolverToJsonFile)
+    {
+        frontend.writeJsonLog = [&](const Luau::ModuleName& moduleName, std::string log) {
+            std::string path = moduleName + ".log.json";
+            size_t pos = moduleName.find_last_of('/');
+            if (pos != std::string::npos)
+                path = moduleName.substr(pos + 1);
+
+            std::ofstream os(path);
+
+            os << log << std::endl;
+            MESSAGE("Wrote JSON log to ", path);
+        };
+    }
 }
 
 Fixture::~Fixture()
@@ -177,7 +204,7 @@ AstStatBlock* Fixture::parse(const std::string& source, const ParseOptions& pars
             {
                 Mode mode = sourceModule->mode ? *sourceModule->mode : Mode::Strict;
                 ModulePtr module = Luau::check(*sourceModule, mode, {}, builtinTypes, NotNull{&ice}, NotNull{&moduleResolver}, NotNull{&fileResolver},
-                    frontend.globals.globalScope, /*prepareModuleScope*/ nullptr, frontend.options, {});
+                    frontend.globals.globalScope, /*prepareModuleScope*/ nullptr, frontend.options, {}, false, {});
 
                 Luau::lint(sourceModule->root, *sourceModule->names, frontend.globals.globalScope, module.get(), sourceModule->hotcomments, {});
             }

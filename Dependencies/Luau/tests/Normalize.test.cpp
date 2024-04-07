@@ -731,7 +731,7 @@ TEST_CASE_FIXTURE(NormalizeFixture, "trivial_intersection_inhabited")
     const NormalizedType* n = normalizer.normalize(c);
     REQUIRE(n);
 
-    CHECK(normalizer.isInhabited(n));
+    CHECK(normalizer.isInhabited(n) == NormalizationResult::True);
 }
 
 TEST_CASE_FIXTURE(NormalizeFixture, "bare_negated_boolean")
@@ -938,6 +938,28 @@ TEST_CASE_FIXTURE(NormalizeFixture, "normalize_unknown")
     CHECK(nt);
     CHECK(nt->isUnknown());
     CHECK(toString(normalizer.typeFromNormal(*nt)) == "unknown");
+}
+
+TEST_CASE_FIXTURE(NormalizeFixture, "read_only_props")
+{
+    ScopedFastFlag sff{FFlag::DebugLuauDeferredConstraintResolution, true};
+
+    CHECK("{ x: string }" == toString(normal("{ read x: string } & { x: string }"), {true}));
+    CHECK("{ x: string }" == toString(normal("{ x: string } & { read x: string }"), {true}));
+}
+
+TEST_CASE_FIXTURE(NormalizeFixture, "read_only_props_2")
+{
+    ScopedFastFlag sff{FFlag::DebugLuauDeferredConstraintResolution, true};
+
+    CHECK(R"({ x: never })" == toString(normal(R"({ x: "hello" } & { x: "world" })"), {true}));
+}
+
+TEST_CASE_FIXTURE(NormalizeFixture, "read_only_props_3")
+{
+    ScopedFastFlag sff{FFlag::DebugLuauDeferredConstraintResolution, true};
+
+    CHECK("{ read x: never }" == toString(normal(R"({ read x: "hello" } & { read x: "world" })"), {true}));
 }
 
 TEST_SUITE_END();

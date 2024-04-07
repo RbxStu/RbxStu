@@ -401,6 +401,9 @@ Unifier::Unifier(NotNull<Normalizer> normalizer, NotNull<Scope> scope, const Loc
     , sharedState(*normalizer->sharedState)
 {
     LUAU_ASSERT(sharedState.iceHandler);
+
+    // Unifier is not usable when this flag is enabled! Please consider using Subtyping instead.
+    LUAU_ASSERT(!FFlag::DebugLuauDeferredConstraintResolution);
 }
 
 void Unifier::tryUnify(TypeId subTy, TypeId superTy, bool isFunctionCall, bool isIntersection, const LiteralProperties* literalProperties)
@@ -729,7 +732,8 @@ void Unifier::tryUnify_(TypeId subTy, TypeId superTy, bool isFunctionCall, bool 
     else if (log.get<NegationType>(superTy) || log.get<NegationType>(subTy))
         tryUnifyNegations(subTy, superTy);
 
-    else if (checkInhabited && !normalizer->isInhabited(subTy))
+    // If the normalizer hits resource limits, we can't show it's uninhabited, so, we should error.
+    else if (checkInhabited && normalizer->isInhabited(subTy) == NormalizationResult::False)
     {
     }
     else
@@ -2375,7 +2379,8 @@ void Unifier::tryUnifyScalarShape(TypeId subTy, TypeId superTy, bool reversed)
     TypeId osubTy = subTy;
     TypeId osuperTy = superTy;
 
-    if (checkInhabited && !normalizer->isInhabited(subTy))
+    // If the normalizer hits resource limits, we can't show it's uninhabited, so, we should continue.
+    if (checkInhabited && normalizer->isInhabited(subTy) == NormalizationResult::False)
         return;
 
     if (reversed)

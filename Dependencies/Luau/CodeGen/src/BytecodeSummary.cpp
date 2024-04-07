@@ -1,5 +1,6 @@
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 #include "Luau/BytecodeSummary.h"
+#include "Luau/BytecodeUtils.h"
 #include "CodeGenLower.h"
 
 #include "lua.h"
@@ -36,11 +37,12 @@ FunctionBytecodeSummary FunctionBytecodeSummary::fromProto(Proto* proto, unsigne
 
     FunctionBytecodeSummary summary(source, name, line, nestingLimit);
 
-    for (int i = 0; i < proto->sizecode; ++i)
+    for (int i = 0; i < proto->sizecode;)
     {
         Instruction insn = proto->code[i];
         uint8_t op = LUAU_INSN_OP(insn);
         summary.incCount(0, op);
+        i += Luau::getOpLength(LuauOpcode(op));
     }
 
     return summary;
@@ -48,7 +50,7 @@ FunctionBytecodeSummary FunctionBytecodeSummary::fromProto(Proto* proto, unsigne
 
 std::vector<FunctionBytecodeSummary> summarizeBytecode(lua_State* L, int idx, unsigned nestingLimit)
 {
-    LUAU_ASSERT(lua_isLfunction(L, idx));
+    CODEGEN_ASSERT(lua_isLfunction(L, idx));
     const TValue* func = luaA_toobject(L, idx);
 
     Proto* root = clvalue(func)->l.p;
@@ -61,7 +63,8 @@ std::vector<FunctionBytecodeSummary> summarizeBytecode(lua_State* L, int idx, un
 
     for (Proto* proto : protos)
     {
-        summaries.push_back(FunctionBytecodeSummary::fromProto(proto, nestingLimit));
+        if (proto)
+            summaries.push_back(FunctionBytecodeSummary::fromProto(proto, nestingLimit));
     }
 
     return summaries;

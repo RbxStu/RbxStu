@@ -86,6 +86,26 @@ declare function @checked contrived(n : Not<number>) : number
 declare function @checked onlyNums(...: number) : number
 declare function @checked mixedArgs(x: string, ...: number) : number
 declare function @checked optionalArg(x: string?) : number
+declare foo: {
+    bar: @checked (number) -> number,
+}
+
+declare function @checked optionalArgsAtTheEnd1(x: string, y: number?, z: number?) : number
+declare function @checked optionalArgsAtTheEnd2(x: string, y: number?, z: string) : number
+
+type DateTypeArg = {
+    year: number,
+    month: number,
+    day: number,
+    hour: number?,
+    min: number?,
+    sec: number?,
+    isdst: boolean?,
+}
+
+declare os : {
+    time: @checked (time: DateTypeArg?) -> number
+}
 )BUILTIN_SRC";
 };
 
@@ -427,7 +447,7 @@ lower(x) -- phi {x1, x2}
 )");
 
     LUAU_REQUIRE_NO_ERRORS(result);
-}
+} //
 
 TEST_CASE_FIXTURE(NonStrictTypeCheckerFixture, "phi_node_assignment_err")
 {
@@ -445,6 +465,66 @@ end
 
     LUAU_REQUIRE_ERROR_COUNT(1, result);
     NONSTRICT_REQUIRE_CHECKED_ERR(Position(8, 10), "lower", result);
+}
+
+TEST_CASE_FIXTURE(NonStrictTypeCheckerFixture, "tblprop_is_checked")
+{
+    CheckResult result = checkNonStrict(R"(
+foo.bar("hi")
+)");
+    LUAU_REQUIRE_ERROR_COUNT(1, result);
+    NONSTRICT_REQUIRE_CHECKED_ERR(Position(1, 8), "foo.bar", result);
+}
+
+TEST_CASE_FIXTURE(NonStrictTypeCheckerFixture, "incorrect_arg_count")
+{
+    CheckResult result = checkNonStrict(R"(
+foo.bar(1,2,3)
+abs(3, "hi");
+)");
+    LUAU_REQUIRE_ERROR_COUNT(2, result);
+    auto r1 = get<CheckedFunctionIncorrectArgs>(result.errors[0]);
+    auto r2 = get<CheckedFunctionIncorrectArgs>(result.errors[1]);
+    LUAU_ASSERT(r1);
+    LUAU_ASSERT(r2);
+    CHECK_EQ("abs", r1->functionName);
+    CHECK_EQ("foo.bar", r2->functionName);
+}
+
+TEST_CASE_FIXTURE(NonStrictTypeCheckerFixture, "optionals_in_checked_function_can_be_omitted")
+{
+    CheckResult result = checkNonStrict(R"(
+optionalArgsAtTheEnd1("a")
+optionalArgsAtTheEnd1("a", 3)
+optionalArgsAtTheEnd1("a", nil, 3)
+)");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(NonStrictTypeCheckerFixture, "optionals_in_checked_function_in_middle_cannot_be_omitted")
+{
+    CheckResult result = checkNonStrict(R"(
+optionalArgsAtTheEnd2("a", "a") -- error
+optionalArgsAtTheEnd2("a", nil, "b")
+optionalArgsAtTheEnd2("a", 3, "b")
+optionalArgsAtTheEnd2("a", "b", "c") -- error
+)");
+    LUAU_REQUIRE_ERROR_COUNT(3, result);
+    NONSTRICT_REQUIRE_CHECKED_ERR(Position(1, 27), "optionalArgsAtTheEnd2", result);
+    NONSTRICT_REQUIRE_CHECKED_ERR(Position(4, 27), "optionalArgsAtTheEnd2", result);
+    auto r1 = get<CheckedFunctionIncorrectArgs>(result.errors[2]);
+    LUAU_ASSERT(r1);
+    CHECK_EQ(3, r1->expected);
+    CHECK_EQ(2, r1->actual);
+}
+
+TEST_CASE_FIXTURE(NonStrictTypeCheckerFixture, "non_testable_type_throws_ice")
+{
+    CHECK_THROWS_AS(checkNonStrict(R"(
+os.time({year = 0, month = 0, day = 0, min = 0, isdst = nil})
+)"),
+        Luau::InternalCompilerError);
 }
 
 TEST_SUITE_END();

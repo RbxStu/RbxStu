@@ -9,6 +9,7 @@
 #include "Luau/VisitType.h"
 
 #include "Fixture.h"
+#include "ClassFixture.h"
 #include "ScopedFlags.h"
 
 #include "doctest.h"
@@ -58,8 +59,8 @@ TEST_CASE_FIXTURE(Fixture, "tc_error")
     {
         LUAU_REQUIRE_ERROR_COUNT(1, result);
 
-        CHECK_EQ(
-            result.errors[0], (TypeError{Location{Position{0, 35}, Position{0, 36}}, TypeMismatch{builtinTypes->numberType, builtinTypes->stringType}}));
+        CHECK_EQ(result.errors[0],
+            (TypeError{Location{Position{0, 35}, Position{0, 36}}, TypeMismatch{builtinTypes->numberType, builtinTypes->stringType}}));
     }
 }
 
@@ -77,9 +78,9 @@ TEST_CASE_FIXTURE(Fixture, "tc_error_2")
         LUAU_REQUIRE_ERROR_COUNT(1, result);
 
         CHECK_EQ(result.errors[0], (TypeError{Location{Position{0, 18}, Position{0, 22}}, TypeMismatch{
-                                                                                            requireType("a"),
-                                                                                            builtinTypes->stringType,
-                                                                                        }}));
+                                                                                              requireType("a"),
+                                                                                              builtinTypes->stringType,
+                                                                                          }}));
     }
 }
 
@@ -1195,28 +1196,6 @@ TEST_CASE_FIXTURE(Fixture, "bidirectional_checking_of_higher_order_function")
     Location location = result.errors[0].location;
     CHECK(location.begin.line == 4);
     CHECK(location.end.line == 4);
-}
-
-TEST_CASE_FIXTURE(Fixture, "bidirectional_checking_of_callback_property")
-{
-    CheckResult result = check(R"(
-        local print: (number) -> ()
-
-        type Point = {x: number, y: number}
-        local T : {callback: ((Point) -> ())?} = {}
-
-        T.callback = function(p) -- No error here
-            print(p.z)           -- error here.  Point has no property z
-        end
-    )");
-
-    LUAU_REQUIRE_ERROR_COUNT(1, result);
-
-    CHECK_MESSAGE(get<UnknownProperty>(result.errors[0]), "Expected UnknownProperty but got " << result.errors[0]);
-
-    Location location = result.errors[0].location;
-    CHECK(location.begin.line == 7);
-    CHECK(location.end.line == 7);
 }
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "it_is_ok_to_have_inconsistent_number_of_return_values_in_nonstrict")

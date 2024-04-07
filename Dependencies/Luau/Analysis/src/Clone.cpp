@@ -8,8 +8,6 @@
 #include "Luau/TypePack.h"
 #include "Luau/Unifiable.h"
 
-LUAU_FASTFLAG(DebugLuauReadWriteProperties)
-
 LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution)
 LUAU_FASTINTVARIABLE(LuauTypeCloneRecursionLimit, 300)
 
@@ -159,6 +157,15 @@ private:
         TypeId target = arena->addType(ty->ty);
         asMutable(target)->documentationSymbol = ty->documentationSymbol;
 
+        if (auto generic = getMutable<GenericType>(target))
+            generic->scope = nullptr;
+        else if (auto free = getMutable<FreeType>(target))
+            free->scope = nullptr;
+        else if (auto fn = getMutable<FunctionType>(target))
+            fn->scope = nullptr;
+        else if (auto table = getMutable<TableType>(target))
+            table->scope = nullptr;
+
         (*types)[ty] = target;
         queue.push_back(target);
         return target;
@@ -175,6 +182,11 @@ private:
 
         TypePackId target = arena->addTypePack(tp->ty);
 
+        if (auto generic = getMutable<GenericTypePack>(target))
+            generic->scope = nullptr;
+        else if (auto free = getMutable<FreeTypePack>(target))
+            free->scope = nullptr;
+
         (*packs)[tp] = target;
         queue.push_back(target);
         return target;
@@ -182,14 +194,14 @@ private:
 
     Property shallowClone(const Property& p)
     {
-        if (FFlag::DebugLuauReadWriteProperties)
+        if (FFlag::DebugLuauDeferredConstraintResolution)
         {
             std::optional<TypeId> cloneReadTy;
-            if (auto ty = p.readType())
+            if (auto ty = p.readTy)
                 cloneReadTy = shallowClone(*ty);
 
             std::optional<TypeId> cloneWriteTy;
-            if (auto ty = p.writeType())
+            if (auto ty = p.writeTy)
                 cloneWriteTy = shallowClone(*ty);
 
             std::optional<Property> cloned = Property::create(cloneReadTy, cloneWriteTy);
@@ -199,6 +211,7 @@ private:
             cloned->location = p.location;
             cloned->tags = p.tags;
             cloned->documentationSymbol = p.documentationSymbol;
+            cloned->typeLocation = p.typeLocation;
             return *cloned;
         }
         else
@@ -210,6 +223,7 @@ private:
                 p.location,
                 p.tags,
                 p.documentationSymbol,
+                p.typeLocation,
             };
         }
     }
@@ -444,14 +458,14 @@ namespace
 
 Property clone(const Property& prop, TypeArena& dest, CloneState& cloneState)
 {
-    if (FFlag::DebugLuauReadWriteProperties)
+    if (FFlag::DebugLuauDeferredConstraintResolution)
     {
         std::optional<TypeId> cloneReadTy;
-        if (auto ty = prop.readType())
+        if (auto ty = prop.readTy)
             cloneReadTy = clone(*ty, dest, cloneState);
 
         std::optional<TypeId> cloneWriteTy;
-        if (auto ty = prop.writeType())
+        if (auto ty = prop.writeTy)
             cloneWriteTy = clone(*ty, dest, cloneState);
 
         std::optional<Property> cloned = Property::create(cloneReadTy, cloneWriteTy);
@@ -461,6 +475,7 @@ Property clone(const Property& prop, TypeArena& dest, CloneState& cloneState)
         cloned->location = prop.location;
         cloned->tags = prop.tags;
         cloned->documentationSymbol = prop.documentationSymbol;
+        cloned->typeLocation = prop.typeLocation;
         return *cloned;
     }
     else
@@ -472,6 +487,7 @@ Property clone(const Property& prop, TypeArena& dest, CloneState& cloneState)
             prop.location,
             prop.tags,
             prop.documentationSymbol,
+            prop.typeLocation,
         };
     }
 }
@@ -559,10 +575,12 @@ struct TypePackCloner
     {
         defaultClone(t);
     }
+
     void operator()(const GenericTypePack& t)
     {
         defaultClone(t);
     }
+
     void operator()(const ErrorTypePack& t)
     {
         defaultClone(t);
@@ -629,7 +647,7 @@ void TypeCloner::operator()(const FreeType& t)
 {
     if (FFlag::DebugLuauDeferredConstraintResolution)
     {
-        FreeType ft{t.scope, clone(t.lowerBound, dest, cloneState), clone(t.upperBound, dest, cloneState)};
+        FreeType ft{nullptr, clone(t.lowerBound, dest, cloneState), clone(t.upperBound, dest, cloneState)};
         TypeId res = dest.addType(ft);
         seenTypes[typeId] = res;
     }

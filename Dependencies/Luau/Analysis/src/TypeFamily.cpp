@@ -2,29 +2,48 @@
 
 #include "Luau/TypeFamily.h"
 
+#include "Luau/Common.h"
 #include "Luau/ConstraintSolver.h"
 #include "Luau/DenseHash.h"
 #include "Luau/Instantiation.h"
 #include "Luau/Normalize.h"
+#include "Luau/NotNull.h"
+#include "Luau/OverloadResolution.h"
+#include "Luau/Set.h"
 #include "Luau/Simplify.h"
 #include "Luau/Substitution.h"
 #include "Luau/Subtyping.h"
 #include "Luau/ToString.h"
 #include "Luau/TxnLog.h"
+#include "Luau/Type.h"
 #include "Luau/TypeCheckLimits.h"
+#include "Luau/TypeFamilyReductionGuesser.h"
+#include "Luau/TypeFwd.h"
 #include "Luau/TypeUtils.h"
 #include "Luau/Unifier2.h"
+#include "Luau/VecDeque.h"
 #include "Luau/VisitType.h"
 
+// used to control emitting CodeTooComplex warnings on type family reduction
 LUAU_DYNAMIC_FASTINTVARIABLE(LuauTypeFamilyGraphReductionMaximumSteps, 1'000'000);
+
+// used to control falling back to a more conservative reduction based on guessing
+// when this value is set to a negative value, guessing will be totally disabled.
+LUAU_DYNAMIC_FASTINTVARIABLE(LuauTypeFamilyUseGuesserDepth, -1);
+
+LUAU_FASTFLAG(DebugLuauLogSolver);
 
 namespace Luau
 {
 
+using TypeOrTypePackIdSet = DenseHashSet<const void*>;
+
 struct InstanceCollector : TypeOnceVisitor
 {
-    std::deque<TypeId> tys;
-    std::deque<TypePackId> tps;
+    VecDeque<TypeId> tys;
+    VecDeque<TypePackId> tps;
+    TypeOrTypePackIdSet shouldGuess{nullptr};
+    std::vector<TypeId> cyclicInstance;
 
     bool visit(TypeId ty, const TypeFamilyInstanceType&) override
     {
@@ -34,8 +53,21 @@ struct InstanceCollector : TypeOnceVisitor
         // in the queue. Consider Add<Add<Add<number, number>, number>, number>:
         // we want to reduce the innermost Add<number, number> instantiation
         // first.
+
+        if (DFInt::LuauTypeFamilyUseGuesserDepth >= 0 && typeFamilyDepth > DFInt::LuauTypeFamilyUseGuesserDepth)
+            shouldGuess.insert(ty);
+
         tys.push_front(ty);
+
         return true;
+    }
+
+    void cycle(TypeId ty) override
+    {
+        /// Detected cyclic type pack
+        TypeId t = follow(ty);
+        if (get<TypeFamilyInstanceType>(t))
+            cyclicInstance.push_back(t);
     }
 
     bool visit(TypeId ty, const ClassType&) override
@@ -51,7 +83,12 @@ struct InstanceCollector : TypeOnceVisitor
         // in the queue. Consider Add<Add<Add<number, number>, number>, number>:
         // we want to reduce the innermost Add<number, number> instantiation
         // first.
+
+        if (DFInt::LuauTypeFamilyUseGuesserDepth >= 0 && typeFamilyDepth > DFInt::LuauTypeFamilyUseGuesserDepth)
+            shouldGuess.insert(tp);
+
         tps.push_front(tp);
+
         return true;
     }
 };
@@ -60,19 +97,24 @@ struct FamilyReducer
 {
     TypeFamilyContext ctx;
 
-    std::deque<TypeId> queuedTys;
-    std::deque<TypePackId> queuedTps;
-    DenseHashSet<const void*> irreducible{nullptr};
+    VecDeque<TypeId> queuedTys;
+    VecDeque<TypePackId> queuedTps;
+    TypeOrTypePackIdSet shouldGuess;
+    std::vector<TypeId> cyclicTypeFamilies;
+    TypeOrTypePackIdSet irreducible{nullptr};
     FamilyGraphReductionResult result;
     bool force = false;
 
     // Local to the constraint being reduced.
     Location location;
 
-    FamilyReducer(std::deque<TypeId> queuedTys, std::deque<TypePackId> queuedTps, Location location, TypeFamilyContext ctx, bool force = false)
+    FamilyReducer(VecDeque<TypeId> queuedTys, VecDeque<TypePackId> queuedTps, TypeOrTypePackIdSet shouldGuess, std::vector<TypeId> cyclicTypes,
+        Location location, TypeFamilyContext ctx, bool force = false)
         : ctx(ctx)
         , queuedTys(std::move(queuedTys))
         , queuedTps(std::move(queuedTps))
+        , shouldGuess(std::move(shouldGuess))
+        , cyclicTypeFamilies(std::move(cyclicTypes))
         , force(force)
         , location(location)
     {
@@ -80,6 +122,7 @@ struct FamilyReducer
 
     enum class SkipTestResult
     {
+        CyclicTypeFamily,
         Irreducible,
         Defer,
         Okay,
@@ -91,10 +134,16 @@ struct FamilyReducer
 
         if (is<TypeFamilyInstanceType>(ty))
         {
+            for (auto t : cyclicTypeFamilies)
+            {
+                if (ty == t)
+                    return SkipTestResult::CyclicTypeFamily;
+            }
+
             if (!irreducible.contains(ty))
                 return SkipTestResult::Defer;
-            else
-                return SkipTestResult::Irreducible;
+
+            return SkipTestResult::Irreducible;
         }
         else if (is<GenericType>(ty))
         {
@@ -126,6 +175,12 @@ struct FamilyReducer
     template<typename T>
     void replace(T subject, T replacement)
     {
+        if (subject->owningArena != ctx.arena.get())
+            ctx.ice->ice("Attempting to modify a type family instance from another arena", location);
+
+        if (FFlag::DebugLuauLogSolver)
+            printf("%s -> %s\n", toString(subject, {true}).c_str(), toString(replacement, {true}).c_str());
+
         asMutable(subject)->ty.template emplace<Unifiable::Bound<T>>(replacement);
 
         if constexpr (std::is_same_v<T, TypeId>)
@@ -145,6 +200,9 @@ struct FamilyReducer
 
             if (reduction.uninhabited || force)
             {
+                if (FFlag::DebugLuauLogSolver)
+                    printf("%s is uninhabited\n", toString(subject, {true}).c_str());
+
                 if constexpr (std::is_same_v<T, TypeId>)
                     result.errors.push_back(TypeError{location, UninhabitedTypeFamily{subject}});
                 else if constexpr (std::is_same_v<T, TypePackId>)
@@ -152,6 +210,9 @@ struct FamilyReducer
             }
             else if (!reduction.uninhabited && !force)
             {
+                if (FFlag::DebugLuauLogSolver)
+                    printf("%s is irreducible; blocked on %zu types, %zu packs\n", toString(subject, {true}).c_str(), reduction.blockedTypes.size(), reduction.blockedPacks.size());
+
                 for (TypeId b : reduction.blockedTypes)
                     result.blockedTypes.insert(b);
 
@@ -175,11 +236,17 @@ struct FamilyReducer
 
             if (skip == SkipTestResult::Irreducible)
             {
+                if (FFlag::DebugLuauLogSolver)
+                    printf("%s is irreducible due to a dependency on %s\n" , toString(subject, {true}).c_str(), toString(p, {true}).c_str());
+
                 irreducible.insert(subject);
                 return false;
             }
             else if (skip == SkipTestResult::Defer)
             {
+                if (FFlag::DebugLuauLogSolver)
+                    printf("Deferring %s until %s is solved\n" , toString(subject, {true}).c_str(), toString(p, {true}).c_str());
+
                 if constexpr (std::is_same_v<T, TypeId>)
                     queuedTys.push_back(subject);
                 else if constexpr (std::is_same_v<T, TypePackId>)
@@ -195,11 +262,17 @@ struct FamilyReducer
 
             if (skip == SkipTestResult::Irreducible)
             {
+                if (FFlag::DebugLuauLogSolver)
+                    printf("%s is irreducible due to a dependency on %s\n" , toString(subject, {true}).c_str(), toString(p, {true}).c_str());
+
                 irreducible.insert(subject);
                 return false;
             }
             else if (skip == SkipTestResult::Defer)
             {
+                if (FFlag::DebugLuauLogSolver)
+                    printf("Deferring %s until %s is solved\n" , toString(subject, {true}).c_str(), toString(p, {true}).c_str());
+
                 if constexpr (std::is_same_v<T, TypeId>)
                     queuedTys.push_back(subject);
                 else if constexpr (std::is_same_v<T, TypePackId>)
@@ -212,6 +285,34 @@ struct FamilyReducer
         return true;
     }
 
+    template<typename TID>
+    inline bool tryGuessing(TID subject)
+    {
+        if (shouldGuess.contains(subject))
+        {
+            if (FFlag::DebugLuauLogSolver)
+                printf("Flagged %s for reduction with guesser.\n", toString(subject, {true}).c_str());
+
+            TypeFamilyReductionGuesser guesser{ctx.arena, ctx.builtins, ctx.normalizer};
+            auto guessed = guesser.guess(subject);
+
+            if (guessed)
+            {
+                if (FFlag::DebugLuauLogSolver)
+                    printf("Selected %s as the guessed result type.\n", toString(*guessed, {true}).c_str());
+
+                replace(subject, *guessed);
+                return true;
+            }
+
+            if (FFlag::DebugLuauLogSolver)
+                printf("Failed to produce a guess for the result of %s.\n", toString(subject, {true}).c_str());
+        }
+
+        return false;
+    }
+
+
     void stepType()
     {
         TypeId subject = follow(queuedTys.front());
@@ -220,12 +321,25 @@ struct FamilyReducer
         if (irreducible.contains(subject))
             return;
 
+        if (FFlag::DebugLuauLogSolver)
+            printf("Trying to reduce %s\n", toString(subject, {true}).c_str());
+
         if (const TypeFamilyInstanceType* tfit = get<TypeFamilyInstanceType>(subject))
         {
-            if (!testParameters(subject, tfit))
+            SkipTestResult testCyclic = testForSkippability(subject);
+
+            if (!testParameters(subject, tfit) && testCyclic != SkipTestResult::CyclicTypeFamily)
+            {
+                if (FFlag::DebugLuauLogSolver)
+                    printf("Irreducible due to irreducible/pending and a non-cyclic family\n");
+
+                return;
+            }
+
+            if (tryGuessing(subject))
                 return;
 
-            TypeFamilyReductionResult<TypeId> result = tfit->family->reducer(tfit->typeArguments, tfit->packArguments, NotNull{&ctx});
+            TypeFamilyReductionResult<TypeId> result = tfit->family->reducer(subject, tfit->typeArguments, tfit->packArguments, NotNull{&ctx});
             handleFamilyReduction(subject, result);
         }
     }
@@ -238,12 +352,18 @@ struct FamilyReducer
         if (irreducible.contains(subject))
             return;
 
+        if (FFlag::DebugLuauLogSolver)
+            printf("Trying to reduce %s\n", toString(subject, {true}).c_str());
+
         if (const TypeFamilyInstanceTypePack* tfit = get<TypeFamilyInstanceTypePack>(subject))
         {
             if (!testParameters(subject, tfit))
                 return;
 
-            TypeFamilyReductionResult<TypePackId> result = tfit->family->reducer(tfit->typeArguments, tfit->packArguments, NotNull{&ctx});
+            if (tryGuessing(subject))
+                return;
+
+            TypeFamilyReductionResult<TypePackId> result = tfit->family->reducer(subject, tfit->typeArguments, tfit->packArguments, NotNull{&ctx});
             handleFamilyReduction(subject, result);
         }
     }
@@ -258,9 +378,9 @@ struct FamilyReducer
 };
 
 static FamilyGraphReductionResult reduceFamiliesInternal(
-    std::deque<TypeId> queuedTys, std::deque<TypePackId> queuedTps, Location location, TypeFamilyContext ctx, bool force)
+    VecDeque<TypeId> queuedTys, VecDeque<TypePackId> queuedTps, TypeOrTypePackIdSet shouldGuess, std::vector<TypeId> cyclics, Location location, TypeFamilyContext ctx, bool force)
 {
-    FamilyReducer reducer{std::move(queuedTys), std::move(queuedTps), location, ctx, force};
+    FamilyReducer reducer{std::move(queuedTys), std::move(queuedTps), std::move(shouldGuess), std::move(cyclics), location, ctx, force};
     int iterationCount = 0;
 
     while (!reducer.done())
@@ -294,7 +414,7 @@ FamilyGraphReductionResult reduceFamilies(TypeId entrypoint, Location location, 
     if (collector.tys.empty() && collector.tps.empty())
         return {};
 
-    return reduceFamiliesInternal(std::move(collector.tys), std::move(collector.tps), location, ctx, force);
+    return reduceFamiliesInternal(std::move(collector.tys), std::move(collector.tps), std::move(collector.shouldGuess), std::move(collector.cyclicInstance), location, ctx, force);
 }
 
 FamilyGraphReductionResult reduceFamilies(TypePackId entrypoint, Location location, TypeFamilyContext ctx, bool force)
@@ -313,15 +433,16 @@ FamilyGraphReductionResult reduceFamilies(TypePackId entrypoint, Location locati
     if (collector.tys.empty() && collector.tps.empty())
         return {};
 
-    return reduceFamiliesInternal(std::move(collector.tys), std::move(collector.tps), location, ctx, force);
+    return reduceFamiliesInternal(std::move(collector.tys), std::move(collector.tps), std::move(collector.shouldGuess), std::move(collector.cyclicInstance), location, ctx, force);
 }
 
 bool isPending(TypeId ty, ConstraintSolver* solver)
 {
-    return is<BlockedType>(ty) || is<PendingExpansionType>(ty) || is<TypeFamilyInstanceType>(ty) || (solver && solver->hasUnresolvedConstraints(ty));
+    return is<BlockedType, PendingExpansionType, TypeFamilyInstanceType, LocalType>(ty) || (solver && solver->hasUnresolvedConstraints(ty));
 }
 
-TypeFamilyReductionResult<TypeId> notFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> notFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 1 || !packParams.empty())
     {
@@ -338,7 +459,8 @@ TypeFamilyReductionResult<TypeId> notFamilyFn(const std::vector<TypeId>& typePar
     return {ctx->builtins->booleanType, false, {}, {}};
 }
 
-TypeFamilyReductionResult<TypeId> lenFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> lenFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 1 || !packParams.empty())
     {
@@ -414,7 +536,7 @@ TypeFamilyReductionResult<TypeId> lenFamilyFn(const std::vector<TypeId>& typePar
 }
 
 TypeFamilyReductionResult<TypeId> unmFamilyFn(
-    const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 1 || !packParams.empty())
     {
@@ -485,8 +607,20 @@ TypeFamilyReductionResult<TypeId> unmFamilyFn(
         return {std::nullopt, true, {}, {}};
 }
 
-TypeFamilyReductionResult<TypeId> numericBinopFamilyFn(
-    const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx, const std::string metamethod)
+NotNull<Constraint> TypeFamilyContext::pushConstraint(ConstraintV&& c)
+{
+    NotNull<Constraint> newConstraint = solver->pushConstraint(scope, constraint ? constraint->location : Location{}, std::move(c));
+
+    // Every constraint that is blocked on the current constraint must also be
+    // blocked on this new one.
+    if (constraint)
+        solver->inheritBlocks(NotNull{constraint}, newConstraint);
+
+    return newConstraint;
+}
+
+TypeFamilyReductionResult<TypeId> numericBinopFamilyFn(TypeId instance, const std::vector<TypeId>& typeParams,
+    const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx, const std::string metamethod)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -496,6 +630,8 @@ TypeFamilyReductionResult<TypeId> numericBinopFamilyFn(
 
     TypeId lhsTy = follow(typeParams.at(0));
     TypeId rhsTy = follow(typeParams.at(1));
+
+    const Location location = ctx->constraint ? ctx->constraint->location : Location{};
 
     // check to see if both operand types are resolved enough, and wait to reduce if not
     if (isPending(lhsTy, ctx->solver))
@@ -526,11 +662,11 @@ TypeFamilyReductionResult<TypeId> numericBinopFamilyFn(
     // the necessary state to do that, even if we intend to just eat the errors.
     ErrorVec dummy;
 
-    std::optional<TypeId> mmType = findMetatableEntry(ctx->builtins, dummy, lhsTy, metamethod, Location{});
+    std::optional<TypeId> mmType = findMetatableEntry(ctx->builtins, dummy, lhsTy, metamethod, location);
     bool reversed = false;
     if (!mmType)
     {
-        mmType = findMetatableEntry(ctx->builtins, dummy, rhsTy, metamethod, Location{});
+        mmType = findMetatableEntry(ctx->builtins, dummy, rhsTy, metamethod, location);
         reversed = true;
     }
 
@@ -541,36 +677,30 @@ TypeFamilyReductionResult<TypeId> numericBinopFamilyFn(
     if (isPending(*mmType, ctx->solver))
         return {std::nullopt, false, {*mmType}, {}};
 
-    const FunctionType* mmFtv = get<FunctionType>(*mmType);
-    if (!mmFtv)
-        return {std::nullopt, true, {}, {}};
+    TypePackId argPack = ctx->arena->addTypePack({lhsTy, rhsTy});
+    SolveResult solveResult;
 
-    std::optional<TypeId> instantiatedMmType = instantiate(ctx->builtins, ctx->arena, ctx->limits, ctx->scope, *mmType);
-    if (!instantiatedMmType)
-        return {std::nullopt, true, {}, {}};
-
-    const FunctionType* instantiatedMmFtv = get<FunctionType>(*instantiatedMmType);
-    if (!instantiatedMmFtv)
-        return {ctx->builtins->errorRecoveryType(), false, {}, {}};
-
-    std::vector<TypeId> inferredArgs;
     if (!reversed)
-        inferredArgs = {lhsTy, rhsTy};
+        solveResult = solveFunctionCall(ctx->arena, ctx->builtins, ctx->normalizer, ctx->ice, ctx->limits, ctx->scope, location, *mmType, argPack);
     else
-        inferredArgs = {rhsTy, lhsTy};
+    {
+        TypePack* p = getMutable<TypePack>(argPack);
+        std::swap(p->head.front(), p->head.back());
+        solveResult = solveFunctionCall(ctx->arena, ctx->builtins, ctx->normalizer, ctx->ice, ctx->limits, ctx->scope, location, *mmType, argPack);
+    }
 
-    TypePackId inferredArgPack = ctx->arena->addTypePack(std::move(inferredArgs));
-    Unifier2 u2{ctx->arena, ctx->builtins, ctx->scope, ctx->ice};
-    if (!u2.unify(inferredArgPack, instantiatedMmFtv->argTypes))
-        return {std::nullopt, true, {}, {}}; // occurs check failed
-
-    if (std::optional<TypeId> ret = first(instantiatedMmFtv->retTypes))
-        return {*ret, false, {}, {}};
-    else
+    if (!solveResult.typePackId.has_value())
         return {std::nullopt, true, {}, {}};
+
+    TypePack extracted = extendTypePack(*ctx->arena, ctx->builtins, *solveResult.typePackId, 1);
+    if (extracted.head.empty())
+        return {std::nullopt, true, {}, {}};
+
+    return {extracted.head.front(), false, {}, {}};
 }
 
-TypeFamilyReductionResult<TypeId> addFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> addFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -578,10 +708,11 @@ TypeFamilyReductionResult<TypeId> addFamilyFn(const std::vector<TypeId>& typePar
         LUAU_ASSERT(false);
     }
 
-    return numericBinopFamilyFn(typeParams, packParams, ctx, "__add");
+    return numericBinopFamilyFn(instance, typeParams, packParams, ctx, "__add");
 }
 
-TypeFamilyReductionResult<TypeId> subFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> subFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -589,10 +720,11 @@ TypeFamilyReductionResult<TypeId> subFamilyFn(const std::vector<TypeId>& typePar
         LUAU_ASSERT(false);
     }
 
-    return numericBinopFamilyFn(typeParams, packParams, ctx, "__sub");
+    return numericBinopFamilyFn(instance, typeParams, packParams, ctx, "__sub");
 }
 
-TypeFamilyReductionResult<TypeId> mulFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> mulFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -600,10 +732,11 @@ TypeFamilyReductionResult<TypeId> mulFamilyFn(const std::vector<TypeId>& typePar
         LUAU_ASSERT(false);
     }
 
-    return numericBinopFamilyFn(typeParams, packParams, ctx, "__mul");
+    return numericBinopFamilyFn(instance, typeParams, packParams, ctx, "__mul");
 }
 
-TypeFamilyReductionResult<TypeId> divFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> divFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -611,10 +744,11 @@ TypeFamilyReductionResult<TypeId> divFamilyFn(const std::vector<TypeId>& typePar
         LUAU_ASSERT(false);
     }
 
-    return numericBinopFamilyFn(typeParams, packParams, ctx, "__div");
+    return numericBinopFamilyFn(instance, typeParams, packParams, ctx, "__div");
 }
 
-TypeFamilyReductionResult<TypeId> idivFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> idivFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -622,10 +756,11 @@ TypeFamilyReductionResult<TypeId> idivFamilyFn(const std::vector<TypeId>& typePa
         LUAU_ASSERT(false);
     }
 
-    return numericBinopFamilyFn(typeParams, packParams, ctx, "__idiv");
+    return numericBinopFamilyFn(instance, typeParams, packParams, ctx, "__idiv");
 }
 
-TypeFamilyReductionResult<TypeId> powFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> powFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -633,10 +768,11 @@ TypeFamilyReductionResult<TypeId> powFamilyFn(const std::vector<TypeId>& typePar
         LUAU_ASSERT(false);
     }
 
-    return numericBinopFamilyFn(typeParams, packParams, ctx, "__pow");
+    return numericBinopFamilyFn(instance, typeParams, packParams, ctx, "__pow");
 }
 
-TypeFamilyReductionResult<TypeId> modFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> modFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -644,10 +780,11 @@ TypeFamilyReductionResult<TypeId> modFamilyFn(const std::vector<TypeId>& typePar
         LUAU_ASSERT(false);
     }
 
-    return numericBinopFamilyFn(typeParams, packParams, ctx, "__mod");
+    return numericBinopFamilyFn(instance, typeParams, packParams, ctx, "__mod");
 }
 
-TypeFamilyReductionResult<TypeId> concatFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> concatFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -732,7 +869,8 @@ TypeFamilyReductionResult<TypeId> concatFamilyFn(const std::vector<TypeId>& type
     return {ctx->builtins->stringType, false, {}, {}};
 }
 
-TypeFamilyReductionResult<TypeId> andFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> andFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -742,6 +880,14 @@ TypeFamilyReductionResult<TypeId> andFamilyFn(const std::vector<TypeId>& typePar
 
     TypeId lhsTy = follow(typeParams.at(0));
     TypeId rhsTy = follow(typeParams.at(1));
+
+    // t1 = and<lhs, t1> ~> lhs
+    if (follow(rhsTy) == instance && lhsTy != rhsTy)
+        return {lhsTy, false, {}, {}};
+    // t1 = and<t1, rhs> ~> rhs
+    if (follow(lhsTy) == instance && lhsTy != rhsTy)
+        return {rhsTy, false, {}, {}};
+
 
     // check to see if both operand types are resolved enough, and wait to reduce if not
     if (isPending(lhsTy, ctx->solver))
@@ -760,7 +906,8 @@ TypeFamilyReductionResult<TypeId> andFamilyFn(const std::vector<TypeId>& typePar
     return {overallResult.result, false, std::move(blockedTypes), {}};
 }
 
-TypeFamilyReductionResult<TypeId> orFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> orFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -770,6 +917,13 @@ TypeFamilyReductionResult<TypeId> orFamilyFn(const std::vector<TypeId>& typePara
 
     TypeId lhsTy = follow(typeParams.at(0));
     TypeId rhsTy = follow(typeParams.at(1));
+
+    // t1 = or<lhs, t1> ~> lhs
+    if (follow(rhsTy) == instance && lhsTy != rhsTy)
+        return {lhsTy, false, {}, {}};
+    // t1 = or<t1, rhs> ~> rhs
+    if (follow(lhsTy) == instance && lhsTy != rhsTy)
+        return {rhsTy, false, {}, {}};
 
     // check to see if both operand types are resolved enough, and wait to reduce if not
     if (isPending(lhsTy, ctx->solver))
@@ -788,8 +942,8 @@ TypeFamilyReductionResult<TypeId> orFamilyFn(const std::vector<TypeId>& typePara
     return {overallResult.result, false, std::move(blockedTypes), {}};
 }
 
-static TypeFamilyReductionResult<TypeId> comparisonFamilyFn(
-    const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx, const std::string metamethod)
+static TypeFamilyReductionResult<TypeId> comparisonFamilyFn(TypeId instance, const std::vector<TypeId>& typeParams,
+    const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx, const std::string metamethod)
 {
 
     if (typeParams.size() != 2 || !packParams.empty())
@@ -801,11 +955,46 @@ static TypeFamilyReductionResult<TypeId> comparisonFamilyFn(
     TypeId lhsTy = follow(typeParams.at(0));
     TypeId rhsTy = follow(typeParams.at(1));
 
-    // check to see if both operand types are resolved enough, and wait to reduce if not
     if (isPending(lhsTy, ctx->solver))
         return {std::nullopt, false, {lhsTy}, {}};
     else if (isPending(rhsTy, ctx->solver))
         return {std::nullopt, false, {rhsTy}, {}};
+
+    // Algebra Reduction Rules for comparison family functions
+    // Note that comparing to never tells you nothing about the other operand
+    // lt< 'a , never> -> continue
+    // lt< never, 'a>  -> continue
+    // lt< 'a, t>      -> 'a is t - we'll solve the constraint, return and solve lt<t, t> -> bool
+    // lt< t, 'a>      -> same as above
+    bool canSubmitConstraint = ctx->solver && ctx->constraint;
+    bool lhsFree = get<FreeType>(lhsTy) != nullptr;
+    bool rhsFree = get<FreeType>(rhsTy) != nullptr;
+    if (canSubmitConstraint)
+    {
+        // Implement injective type families for comparison type families
+        // lt <number, t> implies t is number
+        // lt <t, number> implies t is number
+        if (lhsFree && isNumber(rhsTy))
+            asMutable(lhsTy)->ty.emplace<BoundType>(ctx->builtins->numberType);
+        else if (rhsFree && isNumber(lhsTy))
+            asMutable(rhsTy)->ty.emplace<BoundType>(ctx->builtins->numberType);
+        else if (lhsFree && get<NeverType>(rhsTy) == nullptr)
+        {
+            auto c1 = ctx->pushConstraint(EqualityConstraint{lhsTy, rhsTy});
+            const_cast<Constraint*>(ctx->constraint)->dependencies.emplace_back(c1);
+        }
+        else if (rhsFree && get<NeverType>(lhsTy) == nullptr)
+        {
+            auto c1 = ctx->pushConstraint(EqualityConstraint{rhsTy, lhsTy});
+            const_cast<Constraint*>(ctx->constraint)->dependencies.emplace_back(c1);
+        }
+    }
+
+    // The above might have caused the operand types to be rebound, we need to follow them again
+    lhsTy = follow(lhsTy);
+    rhsTy = follow(rhsTy);
+
+    // check to see if both operand types are resolved enough, and wait to reduce if not
 
     const NormalizedType* normLhsTy = ctx->normalizer->normalize(lhsTy);
     const NormalizedType* normRhsTy = ctx->normalizer->normalize(rhsTy);
@@ -869,7 +1058,8 @@ static TypeFamilyReductionResult<TypeId> comparisonFamilyFn(
     return {ctx->builtins->booleanType, false, {}, {}};
 }
 
-TypeFamilyReductionResult<TypeId> ltFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> ltFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -877,10 +1067,11 @@ TypeFamilyReductionResult<TypeId> ltFamilyFn(const std::vector<TypeId>& typePara
         LUAU_ASSERT(false);
     }
 
-    return comparisonFamilyFn(typeParams, packParams, ctx, "__lt");
+    return comparisonFamilyFn(instance, typeParams, packParams, ctx, "__lt");
 }
 
-TypeFamilyReductionResult<TypeId> leFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> leFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -888,10 +1079,11 @@ TypeFamilyReductionResult<TypeId> leFamilyFn(const std::vector<TypeId>& typePara
         LUAU_ASSERT(false);
     }
 
-    return comparisonFamilyFn(typeParams, packParams, ctx, "__le");
+    return comparisonFamilyFn(instance, typeParams, packParams, ctx, "__le");
 }
 
-TypeFamilyReductionResult<TypeId> eqFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> eqFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -932,7 +1124,8 @@ TypeFamilyReductionResult<TypeId> eqFamilyFn(const std::vector<TypeId>& typePara
         mmType = findMetatableEntry(ctx->builtins, dummy, rhsTy, "__eq", Location{});
 
     // if neither type has a metatable entry for `__eq`, then we'll check for inhabitance of the intersection!
-    if (!mmType && ctx->normalizer->isIntersectionInhabited(lhsTy, rhsTy))
+    NormalizationResult intersectInhabited = ctx->normalizer->isIntersectionInhabited(lhsTy, rhsTy);
+    if (!mmType && intersectInhabited == NormalizationResult::True)
         return {ctx->builtins->booleanType, false, {}, {}}; // if it's inhabited, everything is okay!
     else if (!mmType)
         return {std::nullopt, true, {}, {}}; // if it's not, then this family is irreducible!
@@ -994,7 +1187,8 @@ struct FindRefinementBlockers : TypeOnceVisitor
 };
 
 
-TypeFamilyReductionResult<TypeId> refineFamilyFn(const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+TypeFamilyReductionResult<TypeId> refineFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
 {
     if (typeParams.size() != 2 || !packParams.empty())
     {
@@ -1051,6 +1245,271 @@ TypeFamilyReductionResult<TypeId> refineFamilyFn(const std::vector<TypeId>& type
     return {resultTy, false, {}, {}};
 }
 
+TypeFamilyReductionResult<TypeId> unionFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+{
+    if (typeParams.size() != 2 || !packParams.empty())
+    {
+        ctx->ice->ice("union type family: encountered a type family instance without the required argument structure");
+        LUAU_ASSERT(false);
+    }
+
+    TypeId lhsTy = follow(typeParams.at(0));
+    TypeId rhsTy = follow(typeParams.at(1));
+
+    // check to see if both operand types are resolved enough, and wait to reduce if not
+    if (isPending(lhsTy, ctx->solver))
+        return {std::nullopt, false, {lhsTy}, {}};
+    else if (get<NeverType>(lhsTy)) // if the lhs is never, we don't need this family anymore
+        return {rhsTy, false, {}, {}};
+    else if (isPending(rhsTy, ctx->solver))
+        return {std::nullopt, false, {rhsTy}, {}};
+    else if (get<NeverType>(rhsTy)) // if the rhs is never, we don't need this family anymore
+        return {lhsTy, false, {}, {}};
+
+
+    SimplifyResult result = simplifyUnion(ctx->builtins, ctx->arena, lhsTy, rhsTy);
+    if (!result.blockedTypes.empty())
+        return {std::nullopt, false, {result.blockedTypes.begin(), result.blockedTypes.end()}, {}};
+
+    return {result.result, false, {}, {}};
+}
+
+
+TypeFamilyReductionResult<TypeId> intersectFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+{
+    if (typeParams.size() != 2 || !packParams.empty())
+    {
+        ctx->ice->ice("intersect type family: encountered a type family instance without the required argument structure");
+        LUAU_ASSERT(false);
+    }
+
+    TypeId lhsTy = follow(typeParams.at(0));
+    TypeId rhsTy = follow(typeParams.at(1));
+
+    // check to see if both operand types are resolved enough, and wait to reduce if not
+    if (isPending(lhsTy, ctx->solver))
+        return {std::nullopt, false, {lhsTy}, {}};
+    else if (get<NeverType>(lhsTy)) // if the lhs is never, we don't need this family anymore
+        return {ctx->builtins->neverType, false, {}, {}};
+    else if (isPending(rhsTy, ctx->solver))
+        return {std::nullopt, false, {rhsTy}, {}};
+    else if (get<NeverType>(rhsTy)) // if the rhs is never, we don't need this family anymore
+        return {ctx->builtins->neverType, false, {}, {}};
+
+    SimplifyResult result = simplifyIntersection(ctx->builtins, ctx->arena, lhsTy, rhsTy);
+    if (!result.blockedTypes.empty())
+        return {std::nullopt, false, {result.blockedTypes.begin(), result.blockedTypes.end()}, {}};
+
+    // if the intersection simplifies to `never`, this gives us bad autocomplete.
+    // we'll just produce the intersection plainly instead, but this might be revisitable
+    // if we ever give `never` some kind of "explanation" trail.
+    if (get<NeverType>(result.result))
+    {
+        TypeId intersection = ctx->arena->addType(IntersectionType{{lhsTy, rhsTy}});
+        return {intersection, false, {}, {}};
+    }
+
+    return {result.result, false, {}, {}};
+}
+
+// computes the keys of `ty` into `result`
+// `isRaw` parameter indicates whether or not we should follow __index metamethods
+// returns `false` if `result` should be ignored because the answer is "all strings"
+bool computeKeysOf(TypeId ty, Set<std::string>& result, DenseHashSet<TypeId>& seen, bool isRaw, NotNull<TypeFamilyContext> ctx)
+{
+    // if the type is the top table type, the answer is just "all strings"
+    if (get<PrimitiveType>(ty))
+        return false;
+
+    // if we've already seen this type, we can do nothing
+    if (seen.contains(ty))
+        return true;
+    seen.insert(ty);
+
+    // if we have a particular table type, we can insert the keys
+    if (auto tableTy = get<TableType>(ty))
+    {
+        if (tableTy->indexer)
+        {
+            // if we have a string indexer, the answer is, again, "all strings"
+            if (isString(tableTy->indexer->indexType))
+                return false;
+        }
+
+        for (auto [key, _] : tableTy->props)
+            result.insert(key);
+        return true;
+    }
+
+    // otherwise, we have a metatable to deal with
+    if (auto metatableTy = get<MetatableType>(ty))
+    {
+        bool res = true;
+
+        if (!isRaw)
+        {
+            // findMetatableEntry demands the ability to emit errors, so we must give it
+            // the necessary state to do that, even if we intend to just eat the errors.
+            ErrorVec dummy;
+
+            std::optional<TypeId> mmType = findMetatableEntry(ctx->builtins, dummy, ty, "__index", Location{});
+            if (mmType)
+                res = res && computeKeysOf(*mmType, result, seen, isRaw, ctx);
+        }
+
+        res = res && computeKeysOf(metatableTy->table, result, seen, isRaw, ctx);
+
+        return res;
+    }
+
+    // this should not be reachable since the type should be a valid tables part from normalization.
+    LUAU_ASSERT(false);
+    return false;
+}
+
+TypeFamilyReductionResult<TypeId> keyofFamilyImpl(
+    const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx, bool isRaw)
+{
+    if (typeParams.size() != 1 || !packParams.empty())
+    {
+        ctx->ice->ice("keyof type family: encountered a type family instance without the required argument structure");
+        LUAU_ASSERT(false);
+    }
+
+    TypeId operandTy = follow(typeParams.at(0));
+
+    const NormalizedType* normTy = ctx->normalizer->normalize(operandTy);
+
+    // if the operand failed to normalize, we can't reduce, but know nothing about inhabitance.
+    if (!normTy)
+        return {std::nullopt, false, {}, {}};
+
+    // if we don't have either just tables or just classes, we've got nothing to get keys of (at least until a future version perhaps adds classes
+    // as well)
+    if (normTy->hasTables() == normTy->hasClasses())
+        return {std::nullopt, true, {}, {}};
+
+    // this is sort of atrocious, but we're trying to reject any type that has not normalized to a table or a union of tables.
+    if (normTy->hasTops() || normTy->hasBooleans() || normTy->hasErrors() || normTy->hasNils() || normTy->hasNumbers() || normTy->hasStrings() ||
+        normTy->hasThreads() || normTy->hasBuffers() || normTy->hasFunctions() || normTy->hasTyvars())
+        return {std::nullopt, true, {}, {}};
+
+    // we're going to collect the keys in here
+    Set<std::string> keys{{}};
+
+    // computing the keys for classes
+    if (normTy->hasClasses())
+    {
+        LUAU_ASSERT(!normTy->hasTables());
+
+        auto classesIter = normTy->classes.ordering.begin();
+        auto classesIterEnd = normTy->classes.ordering.end();
+        LUAU_ASSERT(classesIter != classesIterEnd); // should be guaranteed by the `hasClasses` check
+
+        auto classTy = get<ClassType>(*classesIter);
+        if (!classTy)
+        {
+            LUAU_ASSERT(false); // this should not be possible according to normalization's spec
+            return {std::nullopt, true, {}, {}};
+        }
+
+        for (auto [key, _] : classTy->props)
+            keys.insert(key);
+
+        // we need to look at each class to remove any keys that are not common amongst them all
+        while (++classesIter != classesIterEnd)
+        {
+            auto classTy = get<ClassType>(*classesIter);
+            if (!classTy)
+            {
+                LUAU_ASSERT(false); // this should not be possible according to normalization's spec
+                return {std::nullopt, true, {}, {}};
+            }
+
+            for (auto key : keys)
+            {
+                // remove any keys that are not present in each class
+                if (classTy->props.find(key) == classTy->props.end())
+                    keys.erase(key);
+            }
+        }
+    }
+
+    // computing the keys for tables
+    if (normTy->hasTables())
+    {
+        LUAU_ASSERT(!normTy->hasClasses());
+
+        // seen set for key computation for tables
+        DenseHashSet<TypeId> seen{{}};
+
+        auto tablesIter = normTy->tables.begin();
+        LUAU_ASSERT(tablesIter != normTy->tables.end()); // should be guaranteed by the `hasTables` check earlier
+
+        // collect all the properties from the first table type
+        if (!computeKeysOf(*tablesIter, keys, seen, isRaw, ctx))
+            return {ctx->builtins->stringType, false, {}, {}}; // if it failed, we have the top table type!
+
+        // we need to look at each tables to remove any keys that are not common amongst them all
+        while (++tablesIter != normTy->tables.end())
+        {
+            seen.clear(); // we'll reuse the same seen set
+
+            Set<std::string> localKeys{{}};
+
+            // we can skip to the next table if this one is the top table type
+            if (!computeKeysOf(*tablesIter, localKeys, seen, isRaw, ctx))
+                continue;
+
+            for (auto key : keys)
+            {
+                // remove any keys that are not present in each table
+                if (!localKeys.contains(key))
+                    keys.erase(key);
+            }
+        }
+    }
+
+    // if the set of keys is empty, `keyof<T>` is `never`
+    if (keys.empty())
+        return {ctx->builtins->neverType, false, {}, {}};
+
+    // everything is validated, we need only construct our big union of singletons now!
+    std::vector<TypeId> singletons;
+    singletons.reserve(keys.size());
+
+    for (std::string key : keys)
+        singletons.push_back(ctx->arena->addType(SingletonType{StringSingleton{key}}));
+
+    return {ctx->arena->addType(UnionType{singletons}), false, {}, {}};
+}
+
+TypeFamilyReductionResult<TypeId> keyofFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+{
+    if (typeParams.size() != 1 || !packParams.empty())
+    {
+        ctx->ice->ice("keyof type family: encountered a type family instance without the required argument structure");
+        LUAU_ASSERT(false);
+    }
+
+    return keyofFamilyImpl(typeParams, packParams, ctx, /* isRaw */ false);
+}
+
+TypeFamilyReductionResult<TypeId> rawkeyofFamilyFn(
+    TypeId instance, const std::vector<TypeId>& typeParams, const std::vector<TypePackId>& packParams, NotNull<TypeFamilyContext> ctx)
+{
+    if (typeParams.size() != 1 || !packParams.empty())
+    {
+        ctx->ice->ice("rawkeyof type family: encountered a type family instance without the required argument structure");
+        LUAU_ASSERT(false);
+    }
+
+    return keyofFamilyImpl(typeParams, packParams, ctx, /* isRaw */ true);
+}
+
 BuiltinTypeFamilies::BuiltinTypeFamilies()
     : notFamily{"not", notFamilyFn}
     , lenFamily{"len", lenFamilyFn}
@@ -1069,6 +1528,10 @@ BuiltinTypeFamilies::BuiltinTypeFamilies()
     , leFamily{"le", leFamilyFn}
     , eqFamily{"eq", eqFamilyFn}
     , refineFamily{"refine", refineFamilyFn}
+    , unionFamily{"union", unionFamilyFn}
+    , intersectFamily{"intersect", intersectFamilyFn}
+    , keyofFamily{"keyof", keyofFamilyFn}
+    , rawkeyofFamily{"rawkeyof", rawkeyofFamilyFn}
 {
 }
 
@@ -1087,7 +1550,7 @@ void BuiltinTypeFamilies::addToScope(NotNull<TypeArena> arena, NotNull<Scope> sc
         TypeId t = arena->addType(GenericType{"T"});
         TypeId u = arena->addType(GenericType{"U"});
         GenericTypeDefinition genericT{t};
-        GenericTypeDefinition genericU{u};
+        GenericTypeDefinition genericU{u, {t}};
 
         return TypeFun{{genericT, genericU}, arena->addType(TypeFamilyInstanceType{NotNull{family}, {t, u}, {}})};
     };
@@ -1107,6 +1570,9 @@ void BuiltinTypeFamilies::addToScope(NotNull<TypeArena> arena, NotNull<Scope> sc
     scope->exportedTypeBindings[ltFamily.name] = mkBinaryTypeFamily(&ltFamily);
     scope->exportedTypeBindings[leFamily.name] = mkBinaryTypeFamily(&leFamily);
     scope->exportedTypeBindings[eqFamily.name] = mkBinaryTypeFamily(&eqFamily);
+
+    scope->exportedTypeBindings[keyofFamily.name] = mkUnaryTypeFamily(&keyofFamily);
+    scope->exportedTypeBindings[rawkeyofFamily.name] = mkUnaryTypeFamily(&rawkeyofFamily);
 }
 
 } // namespace Luau

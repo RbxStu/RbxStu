@@ -71,6 +71,8 @@ struct ConstraintGenerator
     // This is null when the CG is initially constructed.
     Scope* rootScope;
 
+    TypeContext typeContext = TypeContext::Default;
+
     struct InferredBinding
     {
         Scope* scope;
@@ -92,6 +94,10 @@ struct ConstraintGenerator
     // Constraints that do not go to the solver right away.  Other constraints
     // will enqueue them during solving.
     std::vector<ConstraintPtr> unqueuedConstraints;
+
+    // Type family instances created by the generator. This is used to ensure
+    // that these instances are reduced fully by the solver.
+    std::vector<TypeId> familyInstances;
 
     // The private scope of type aliases for which the type parameters belong to.
     DenseHashMap<const AstStatTypeAlias*, ScopePtr> astTypeAliasDefiningScopes{nullptr};
@@ -118,10 +124,9 @@ struct ConstraintGenerator
 
     DcrLogger* logger;
 
-    ConstraintGenerator(ModulePtr module, NotNull<Normalizer> normalizer, NotNull<ModuleResolver> moduleResolver,
-        NotNull<BuiltinTypes> builtinTypes, NotNull<InternalErrorReporter> ice, const ScopePtr& globalScope,
-        std::function<void(const ModuleName&, const ScopePtr&)> prepareModuleScope, DcrLogger* logger, NotNull<DataFlowGraph> dfg,
-        std::vector<RequireCycle> requireCycles);
+    ConstraintGenerator(ModulePtr module, NotNull<Normalizer> normalizer, NotNull<ModuleResolver> moduleResolver, NotNull<BuiltinTypes> builtinTypes,
+        NotNull<InternalErrorReporter> ice, const ScopePtr& globalScope, std::function<void(const ModuleName&, const ScopePtr&)> prepareModuleScope,
+        DcrLogger* logger, NotNull<DataFlowGraph> dfg, std::vector<RequireCycle> requireCycles);
 
     /**
      * The entry point to the ConstraintGenerator. This will construct a set
@@ -131,6 +136,8 @@ struct ConstraintGenerator
     void visitModuleRoot(AstStatBlock* block);
 
 private:
+    std::vector<std::vector<TypeId>> interiorTypes;
+
     /**
      * Fabricates a new free type belonging to a given scope.
      * @param scope the scope the free type belongs to.
@@ -144,13 +151,25 @@ private:
     TypePackId freshTypePack(const ScopePtr& scope);
 
     /**
+     * Allocate a new TypePack with the given head and tail.
+     *
+     * Avoids allocating 0-length type packs:
+     *
+     * If the head is non-empty, allocate and return a type pack with the given
+     * head and tail.
+     * If the head is empty and tail is non-empty, return *tail.
+     * If both the head and tail are empty, return an empty type pack.
+     */
+    TypePackId addTypePack(std::vector<TypeId> head, std::optional<TypePackId> tail);
+
+    /**
      * Fabricates a scope that is a child of another scope.
      * @param node the lexical node that the scope belongs to.
      * @param parent the parent scope of the new scope. Must not be null.
      */
     ScopePtr childScope(AstNode* node, const ScopePtr& parent);
 
-    std::optional<TypeId> lookup(Scope* scope, DefId def, bool prototype = true);
+    std::optional<TypeId> lookup(const ScopePtr& scope, DefId def, bool prototype = true);
 
     /**
      * Adds a new constraint with no dependencies to a given scope.
@@ -178,8 +197,10 @@ private:
     };
 
     using RefinementContext = InsertionOrderedMap<DefId, RefinementPartition>;
-    void unionRefinements(const RefinementContext& lhs, const RefinementContext& rhs, RefinementContext& dest, std::vector<ConstraintV>* constraints);
-    void computeRefinement(const ScopePtr& scope, RefinementId refinement, RefinementContext* refis, bool sense, bool eq, std::vector<ConstraintV>* constraints);
+    void unionRefinements(const ScopePtr& scope, Location location, const RefinementContext& lhs, const RefinementContext& rhs,
+        RefinementContext& dest, std::vector<ConstraintV>* constraints);
+    void computeRefinement(const ScopePtr& scope, Location location, RefinementId refinement, RefinementContext* refis, bool sense, bool eq,
+        std::vector<ConstraintV>* constraints);
     void applyRefinements(const ScopePtr& scope, Location location, RefinementId refinement);
 
     ControlFlow visitBlockWithoutChildScope(const ScopePtr& scope, AstStatBlock* block);
@@ -237,16 +258,18 @@ private:
     Inference check(const ScopePtr& scope, AstExprTable* expr, std::optional<TypeId> expectedType);
     std::tuple<TypeId, TypeId, RefinementId> checkBinary(const ScopePtr& scope, AstExprBinary* binary, std::optional<TypeId> expectedType);
 
-    /**
-     * Generate constraints to assign assignedTy to the expression expr
-     * @returns the type of the expression.  This may or may not be assignedTy itself.
-     */
-    std::optional<TypeId> checkLValue(const ScopePtr& scope, AstExpr* expr, TypeId assignedTy);
-    std::optional<TypeId> checkLValue(const ScopePtr& scope, AstExprLocal* local, TypeId assignedTy);
-    std::optional<TypeId> checkLValue(const ScopePtr& scope, AstExprGlobal* global, TypeId assignedTy);
-    std::optional<TypeId> checkLValue(const ScopePtr& scope, AstExprIndexName* indexName, TypeId assignedTy);
-    std::optional<TypeId> checkLValue(const ScopePtr& scope, AstExprIndexExpr* indexExpr, TypeId assignedTy);
-    TypeId updateProperty(const ScopePtr& scope, AstExpr* expr, TypeId assignedTy);
+    struct LValueBounds
+    {
+        std::optional<TypeId> annotationTy;
+        std::optional<TypeId> assignedTy;
+    };
+
+    LValueBounds checkLValue(const ScopePtr& scope, AstExpr* expr, bool transform);
+    LValueBounds checkLValue(const ScopePtr& scope, AstExprLocal* local, bool transform);
+    LValueBounds checkLValue(const ScopePtr& scope, AstExprGlobal* global);
+    LValueBounds checkLValue(const ScopePtr& scope, AstExprIndexName* indexName);
+    LValueBounds checkLValue(const ScopePtr& scope, AstExprIndexExpr* indexExpr);
+    LValueBounds updateProperty(const ScopePtr& scope, AstExpr* expr);
 
     struct FunctionSignature
     {
@@ -329,6 +352,11 @@ private:
     void reportError(Location location, TypeErrorData err);
     void reportCodeTooComplex(Location location);
 
+    // make a union type family of these two types
+    TypeId makeUnion(const ScopePtr& scope, Location location, TypeId lhs, TypeId rhs);
+    // make an intersect type family of these two types
+    TypeId makeIntersect(const ScopePtr& scope, Location location, TypeId lhs, TypeId rhs);
+
     /** Scan the program for global definitions.
      *
      * ConstraintGenerator needs to differentiate between globals and accesses to undefined symbols. Doing this "for
@@ -348,6 +376,8 @@ private:
      *  yields a vector of size 1, with value: [number | string]
      */
     std::vector<std::optional<TypeId>> getExpectedCallTypesForFunctionOverloads(const TypeId fnType);
+
+    TypeId createFamilyInstance(TypeFamilyInstanceType instance, const ScopePtr& scope, Location location);
 };
 
 /** Borrow a vector of pointers from a vector of owning pointers to constraints.

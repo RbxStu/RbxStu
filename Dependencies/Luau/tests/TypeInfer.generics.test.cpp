@@ -27,6 +27,8 @@ TEST_CASE_FIXTURE(Fixture, "check_generic_function")
         local y: number = id(37)
     )");
     LUAU_REQUIRE_NO_ERRORS(result);
+    CHECK_EQ(builtinTypes->stringType, requireType("x"));
+    CHECK_EQ(builtinTypes->numberType, requireType("y"));
 }
 
 TEST_CASE_FIXTURE(Fixture, "check_generic_local_function")
@@ -39,6 +41,40 @@ TEST_CASE_FIXTURE(Fixture, "check_generic_local_function")
         local y: number = id(37)
     )");
     LUAU_REQUIRE_NO_ERRORS(result);
+    CHECK_EQ(builtinTypes->stringType, requireType("x"));
+    CHECK_EQ(builtinTypes->numberType, requireType("y"));
+}
+
+TEST_CASE_FIXTURE(Fixture, "check_generic_local_function2")
+{
+    CheckResult result = check(R"(
+        local function id<a>(x:a): a
+            return x
+        end
+        local x = id("hi")
+        local y = id(37)
+    )");
+    LUAU_REQUIRE_NO_ERRORS(result);
+    CHECK_EQ(builtinTypes->stringType, requireType("x"));
+    CHECK_EQ(builtinTypes->numberType, requireType("y"));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "unions_and_generics")
+{
+    CheckResult result = check(R"(
+        type foo = <T>(T | {T}) -> T
+        local foo = (nil :: any) :: foo
+
+        type Test = number | {number}
+        local res = foo(1 :: Test)
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+        CHECK_EQ("number | {number}", toString(requireType("res")));
+    else // in the old solver, this just totally falls apart
+        CHECK_EQ("a", toString(requireType("res")));
 }
 
 TEST_CASE_FIXTURE(Fixture, "check_generic_typepack_function")
@@ -144,12 +180,12 @@ TEST_CASE_FIXTURE(Fixture, "check_recursive_generic_function")
 TEST_CASE_FIXTURE(Fixture, "check_mutual_generic_functions")
 {
     CheckResult result = check(R"(
-        local id2
-        local function id1<a>(x:a):a
+        function id1<a>(x:a):a
             local y: string = id2("hi")
             local z: number = id2(37)
             return x
         end
+
         function id2<a>(x:a):a
             local y: string = id1("hi")
             local z: number = id1(37)
@@ -157,6 +193,68 @@ TEST_CASE_FIXTURE(Fixture, "check_mutual_generic_functions")
         end
     )");
     LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(Fixture, "check_mutual_generic_functions_unannotated")
+{
+    if (!FFlag::DebugLuauDeferredConstraintResolution)
+        return;
+
+    CheckResult result = check(R"(
+        function id1(x)
+            local y: string = id2("hi")
+            local z: number = id2(37)
+            return x
+        end
+
+        function id2(x)
+            local y: string = id1("hi")
+            local z: number = id1(37)
+            return x
+        end
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(Fixture, "check_mutual_generic_functions_errors")
+{
+    if (!FFlag::DebugLuauDeferredConstraintResolution)
+        return;
+
+    CheckResult result = check(R"(
+        function id1(x)
+            local y: string = id2(37) -- odd
+            local z: number = id2("hi") -- even
+            return x
+        end
+
+        function id2(x)
+            local y: string = id1(37) -- odd
+            local z: number = id1("hi") -- even
+            return x
+        end
+    )");
+
+    LUAU_REQUIRE_ERROR_COUNT(4, result);
+
+    // odd errors
+    for (int i = 0; i < 4; i += 2)
+    {
+        TypeMismatch* tm = get<TypeMismatch>(result.errors[i]);
+        REQUIRE(tm);
+        CHECK_EQ("string", toString(tm->wantedType));
+        CHECK_EQ("number", toString(tm->givenType));
+    }
+
+    // even errors
+    for (int i = 1; i < 4; i += 2)
+    {
+        TypeMismatch* tm = get<TypeMismatch>(result.errors[i]);
+        REQUIRE(tm);
+        CHECK_EQ("number", toString(tm->wantedType));
+        CHECK_EQ("string", toString(tm->givenType));
+    }
 }
 
 TEST_CASE_FIXTURE(Fixture, "generic_functions_in_types")
@@ -304,15 +402,7 @@ TEST_CASE_FIXTURE(Fixture, "calling_self_generic_methods")
         end
     )");
 
-    if (FFlag::DebugLuauDeferredConstraintResolution)
-    {
-        LUAU_REQUIRE_NO_ERRORS(result);
-
-        CHECK_EQ("{ f: (t1) -> (), id: <a>(unknown, a) -> a } where t1 = { id: ((t1, number) -> number) & ((t1, string) -> string) }",
-            toString(requireType("x"), {true}));
-    }
-    else
-        LUAU_REQUIRE_ERRORS(result);
+    LUAU_REQUIRE_ERRORS(result);
 }
 
 TEST_CASE_FIXTURE(Fixture, "infer_generic_property")
@@ -375,6 +465,7 @@ TEST_CASE_FIXTURE(Fixture, "dont_leak_generic_types")
         -- so this assignment should fail
         local b: boolean = f(true)
     )");
+
     LUAU_REQUIRE_ERRORS(result);
 }
 
@@ -735,8 +826,9 @@ y.a.c = y
     LUAU_REQUIRE_ERRORS(result);
 
     if (FFlag::DebugLuauDeferredConstraintResolution)
-        CHECK(toString(result.errors.at(0)) ==
-              R"(Type 'x' could not be converted into 'T<number>'; type x["a"]["c"] (nil) is not exactly T<number>["a"]["c"][0] (T<number>))");
+        CHECK(
+            toString(result.errors.at(0)) ==
+            R"(Type '{ a: { c: nil, d: number }, b: number }' could not be converted into 'T<number>'; type { a: { c: nil, d: number }, b: number }[read "a"][read "c"] (nil) is not exactly T<number>[read "a"][read "c"][0] (T<number>))");
     else
     {
         const std::string expected = R"(Type 'y' could not be converted into 'T<string>'
@@ -947,7 +1039,7 @@ TEST_CASE_FIXTURE(Fixture, "instantiate_cyclic_generic_function")
 
     TypeId arg = follow(*optionArg);
     const TableType* argTable = get<TableType>(arg);
-    REQUIRE(argTable != nullptr);
+    REQUIRE_MESSAGE(argTable != nullptr, "Expected table but got " << toString(arg));
 
     std::optional<Property> methodProp = get(argTable->props, "method");
     REQUIRE(bool(methodProp));
@@ -1305,6 +1397,47 @@ TEST_CASE_FIXTURE(Fixture, "bidirectional_checking_and_generalization_play_nice"
 
     CHECK("number" == toString(requireType("a")));
     CHECK("string" == toString(requireType("b")));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "generalization_no_cyclic_intersections")
+{
+    CheckResult result = check(R"(
+        local f, t, n = pairs({"foo"})
+        local k, v = f(t)
+    )");
+
+    CHECK("({string}, number?) -> (number?, string)" == toString(requireType("f")));
+    CHECK("{string}" == toString(requireType("t")));
+    CHECK("number?" == toString(requireType("k")));
+    CHECK("string" == toString(requireType("v")));
+}
+
+TEST_CASE_FIXTURE(Fixture, "missing_generic_type_parameter")
+{
+    CheckResult result = check(R"(
+        function f(x: T): T return x end
+    )");
+
+    LUAU_REQUIRE_ERROR_COUNT(2, result);
+
+    REQUIRE(get<UnknownSymbol>(result.errors[0]));
+    REQUIRE(get<UnknownSymbol>(result.errors[1]));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "generic_type_families_work_in_subtyping")
+{
+    if (!FFlag::DebugLuauDeferredConstraintResolution)
+        return;
+
+    CheckResult result = check(R"(
+        local function addOne<T>(x: T): add<T, number> return x + 1 end
+
+        local function six(): number
+            return addOne(5)
+        end
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
 }
 
 TEST_SUITE_END();

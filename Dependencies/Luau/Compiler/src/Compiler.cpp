@@ -26,7 +26,7 @@ LUAU_FASTINTVARIABLE(LuauCompileInlineThreshold, 25)
 LUAU_FASTINTVARIABLE(LuauCompileInlineThresholdMaxBoost, 300)
 LUAU_FASTINTVARIABLE(LuauCompileInlineDepth, 5)
 
-LUAU_FASTFLAGVARIABLE(LuauCompileRevK, false)
+LUAU_FASTFLAGVARIABLE(LuauCompileRepeatUntilSkippedLocals, false)
 
 namespace Luau
 {
@@ -995,7 +995,9 @@ struct Compiler
             bytecode.emitAD(LOP_NEWCLOSURE, target, pid);
 
         for (const Capture& c : captures)
+        {
             bytecode.emitABC(LOP_CAPTURE, uint8_t(c.type), c.data, 0);
+        }
     }
 
     LuauOpcode getUnaryOp(AstExprUnary::Op op)
@@ -1515,7 +1517,7 @@ struct Compiler
             }
             else
             {
-                if (FFlag::LuauCompileRevK && (expr->op == AstExprBinary::Sub || expr->op == AstExprBinary::Div))
+                if (expr->op == AstExprBinary::Sub || expr->op == AstExprBinary::Div)
                 {
                     int32_t lc = getConstantNumber(expr->left);
 
@@ -2674,6 +2676,7 @@ struct Compiler
         RegScope rs(this);
 
         bool continueValidated = false;
+        size_t conditionLocals = 0;
 
         for (size_t i = 0; i < body->body.size; ++i)
         {
@@ -2691,7 +2694,23 @@ struct Compiler
             {
                 validateContinueUntil(loops.back().continueUsed, stat->condition, body, i + 1);
                 continueValidated = true;
+
+                if (FFlag::LuauCompileRepeatUntilSkippedLocals)
+                    conditionLocals = localStack.size();
             }
+        }
+
+        // if continue was used, some locals might not have had their initialization completed
+        // the lifetime of these locals has to end before the condition is executed
+        // because referencing skipped locals is not possible from the condition, this earlier closure doesn't affect upvalues
+        if (FFlag::LuauCompileRepeatUntilSkippedLocals && continueValidated)
+        {
+            // if continueValidated is set, it means we have visited at least one body node and size > 0
+            setDebugLineEnd(body->body.data[body->body.size - 1]);
+
+            closeLocals(conditionLocals);
+
+            popLocals(conditionLocals);
         }
 
         size_t contLabel = bytecode.emitLabel();

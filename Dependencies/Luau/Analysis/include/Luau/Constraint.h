@@ -14,7 +14,15 @@
 namespace Luau
 {
 
+enum class ValueContext;
 struct Scope;
+
+// if resultType is a freeType, assignmentType <: freeType <: resultType bounds
+struct EqualityConstraint
+{
+    TypeId resultType;
+    TypeId assignmentType;
+};
 
 // subType <: superType
 struct SubtypeConstraint
@@ -40,6 +48,8 @@ struct GeneralizationConstraint
 {
     TypeId generalizedType;
     TypeId sourceType;
+
+    std::vector<TypeId> interiorTypes;
 };
 
 // subType ~ inst superType
@@ -90,18 +100,44 @@ struct FunctionCallConstraint
     DenseHashMap<const AstNode*, TypeId>* astOverloadResolvedTypes = nullptr;
 };
 
-// result ~ prim ExpectedType SomeSingletonType MultitonType
+// function_check fn argsPack
 //
-// If ExpectedType is potentially a singleton (an actual singleton or a union
-// that contains a singleton), then result ~ SomeSingletonType
+// If fn is a function type and argsPack is a partially solved
+// pack of arguments to be supplied to the function, propagate the argument
+// types of fn into the types of argsPack. This is used to implement
+// bidirectional inference of lambda arguments.
+struct FunctionCheckConstraint
+{
+    TypeId fn;
+    TypePackId argsPack;
+
+    class AstExprCall* callSite = nullptr;
+    NotNull<DenseHashMap<const AstExpr*, TypeId>> astTypes;
+    NotNull<DenseHashMap<const AstExpr*, TypeId>> astExpectedTypes;
+};
+
+// prim FreeType ExpectedType PrimitiveType
 //
-// else result ~ MultitonType
+// FreeType is bounded below by the singleton type and above by PrimitiveType
+// initially. When this constraint is resolved, it will check that the bounds
+// of the free type are well-formed by subtyping.
+//
+// If they are not well-formed, then FreeType is replaced by its lower bound
+//
+// If they are well-formed and ExpectedType is potentially a singleton (an
+// actual singleton or a union that contains a singleton),
+// then FreeType is replaced by its lower bound
+//
+// else FreeType is replaced by PrimitiveType
 struct PrimitiveTypeConstraint
 {
-    TypeId resultType;
-    TypeId expectedType;
-    TypeId singletonType;
-    TypeId multitonType;
+    TypeId freeType;
+
+    // potentially gets used to force the lower bound?
+    std::optional<TypeId> expectedType;
+
+    // the primitive type to check against
+    TypeId primitiveType;
 };
 
 // result ~ hasProp type "prop_name"
@@ -120,6 +156,16 @@ struct HasPropConstraint
     TypeId resultType;
     TypeId subjectType;
     std::string prop;
+    ValueContext context;
+
+    // We want to track if this `HasPropConstraint` comes from a conditional.
+    // If it does, we're going to change the behavior of property look-up a bit.
+    // In particular, we're going to return `unknownType` for property lookups
+    // on `table` or inexact table types where the property is not present.
+    //
+    // This allows us to refine table types to have additional properties
+    // without reporting errors in typechecking on the property tests.
+    bool inConditional = false;
 
     // HACK: We presently need types like true|false or string|"hello" when
     // deciding whether a particular literal expression should have a singleton
@@ -157,6 +203,19 @@ struct SetPropConstraint
     TypeId propType;
 };
 
+// resultType ~ hasIndexer subjectType indexType
+//
+// If the subject type is a table or table-like thing that supports indexing,
+// populate the type result with the result type of such an index operation.
+//
+// If the subject is not indexable, resultType is bound to errorType.
+struct HasIndexerConstraint
+{
+    TypeId resultType;
+    TypeId subjectType;
+    TypeId indexType;
+};
+
 // result ~ setIndexer subjectType indexType propType
 //
 // If the subject is a table or table-like thing that already has an indexer,
@@ -165,7 +224,6 @@ struct SetPropConstraint
 // If the table is a free or unsealed table, we augment it with a new indexer.
 struct SetIndexerConstraint
 {
-    TypeId resultType;
     TypeId subjectType;
     TypeId indexType;
     TypeId propType;
@@ -190,6 +248,20 @@ struct UnpackConstraint
 {
     TypePackId resultPack;
     TypePackId sourcePack;
+
+    // UnpackConstraint is sometimes used to resolve the types of assignments.
+    // When this is the case, any LocalTypes in resultPack can have their
+    // domains extended by the corresponding type from sourcePack.
+    bool resultIsLValue = false;
+};
+
+// resultType ~ unpack sourceType
+//
+// The same as UnpackConstraint, but specialized for a pair of types as opposed to packs.
+struct Unpack1Constraint
+{
+    TypeId resultType;
+    TypeId sourceType;
 
     // UnpackConstraint is sometimes used to resolve the types of assignments.
     // When this is the case, any LocalTypes in resultPack can have their
@@ -230,8 +302,9 @@ struct ReducePackConstraint
 };
 
 using ConstraintV = Variant<SubtypeConstraint, PackSubtypeConstraint, GeneralizationConstraint, InstantiationConstraint, IterableConstraint,
-    NameConstraint, TypeAliasExpansionConstraint, FunctionCallConstraint, PrimitiveTypeConstraint, HasPropConstraint, SetPropConstraint,
-    SetIndexerConstraint, SingletonOrTopTypeConstraint, UnpackConstraint, SetOpConstraint, ReduceConstraint, ReducePackConstraint>;
+    NameConstraint, TypeAliasExpansionConstraint, FunctionCallConstraint, FunctionCheckConstraint, PrimitiveTypeConstraint, HasPropConstraint,
+    SetPropConstraint, HasIndexerConstraint, SetIndexerConstraint, SingletonOrTopTypeConstraint, UnpackConstraint, Unpack1Constraint,
+    SetOpConstraint, ReduceConstraint, ReducePackConstraint, EqualityConstraint>;
 
 struct Constraint
 {

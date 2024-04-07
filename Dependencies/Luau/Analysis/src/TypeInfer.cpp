@@ -38,8 +38,9 @@ LUAU_FASTFLAG(LuauInstantiateInSubtyping)
 LUAU_FASTFLAGVARIABLE(LuauTinyControlFlowAnalysis, false)
 LUAU_FASTFLAGVARIABLE(LuauLoopControlFlowAnalysis, false)
 LUAU_FASTFLAGVARIABLE(LuauAlwaysCommitInferencesOfFunctionCalls, false)
-LUAU_FASTFLAG(LuauBufferTypeck)
 LUAU_FASTFLAGVARIABLE(LuauRemoveBadRelationalOperatorWarning, false)
+LUAU_FASTFLAGVARIABLE(LuauForbidAliasNamedTypeof, false)
+LUAU_FASTFLAGVARIABLE(LuauOkWithIteratingOverTableProperties, false)
 
 namespace Luau
 {
@@ -668,7 +669,7 @@ LUAU_NOINLINE void TypeChecker::checkBlockTypeAliases(const ScopePtr& scope, std
     {
         if (const auto& typealias = stat->as<AstStatTypeAlias>())
         {
-            if (typealias->name == kParseNameError)
+            if (typealias->name == kParseNameError || (FFlag::LuauForbidAliasNamedTypeof && typealias->name == "typeof"))
                 continue;
 
             auto& bindings = typealias->exported ? scope->exportedTypeBindings : scope->privateTypeBindings;
@@ -1335,10 +1336,10 @@ ControlFlow TypeChecker::check(const ScopePtr& scope, const AstStatForIn& forin)
             for (size_t i = 2; i < varTypes.size(); ++i)
                 unify(nilType, varTypes[i], scope, forin.location);
         }
-        else if (isNonstrictMode())
+        else if (isNonstrictMode() || FFlag::LuauOkWithIteratingOverTableProperties)
         {
             for (TypeId var : varTypes)
-                unify(anyType, var, scope, forin.location);
+                unify(unknownType, var, scope, forin.location);
         }
         else
         {
@@ -1536,6 +1537,12 @@ ControlFlow TypeChecker::check(const ScopePtr& scope, const AstStatTypeAlias& ty
     if (name == kParseNameError)
         return ControlFlow::None;
 
+    if (FFlag::LuauForbidAliasNamedTypeof && name == "typeof")
+    {
+        reportError(typealias.location, GenericError{"Type aliases cannot be named typeof"});
+        return ControlFlow::None;
+    }
+
     std::optional<TypeFun> binding;
     if (auto it = scope->exportedTypeBindings.find(name); it != scope->exportedTypeBindings.end())
         binding = it->second;
@@ -1649,7 +1656,9 @@ void TypeChecker::prototype(const ScopePtr& scope, const AstStatTypeAlias& typea
     Name name = typealias.name.value;
 
     // If the alias is missing a name, we can't do anything with it.  Ignore it.
-    if (name == kParseNameError)
+    // Also, typeof is not a valid type alias name.  We will report an error for
+    // this in check()
+    if (name == kParseNameError || (FFlag::LuauForbidAliasNamedTypeof && name == "typeof"))
         return;
 
     std::optional<TypeFun> binding;
@@ -2644,7 +2653,18 @@ static std::optional<bool> areEqComparable(NotNull<TypeArena> arena, NotNull<Nor
     if (!n)
         return std::nullopt;
 
-    return normalizer->isInhabited(n);
+    switch (normalizer->isInhabited(n))
+    {
+    case NormalizationResult::HitLimits:
+        return std::nullopt;
+    case NormalizationResult::False:
+        return false;
+    case NormalizationResult::True:
+        return true;
+    }
+
+    // n.b. msvc can never figure this stuff out.
+    LUAU_UNREACHABLE();
 }
 
 TypeId TypeChecker::checkRelationalOperation(
@@ -5400,10 +5420,28 @@ TypeId TypeChecker::resolveTypeWorker(const ScopePtr& scope, const AstType& anno
         std::optional<TableIndexer> tableIndexer;
 
         for (const auto& prop : table->props)
-            props[prop.name.value] = {resolveType(scope, *prop.type), /* deprecated: */ false, {}, std::nullopt, {}, std::nullopt, prop.location};
+        {
+            if (prop.access == AstTableAccess::Read)
+                reportError(prop.accessLocation.value_or(Location{}), GenericError{"read keyword is illegal here"});
+            else if (prop.access == AstTableAccess::Write)
+                reportError(prop.accessLocation.value_or(Location{}), GenericError{"write keyword is illegal here"});
+            else if (prop.access == AstTableAccess::ReadWrite)
+                props[prop.name.value] = {resolveType(scope, *prop.type), /* deprecated: */ false, {}, std::nullopt, {}, std::nullopt, prop.location};
+            else
+                ice("Unexpected property access " + std::to_string(int(prop.access)));
+        }
 
         if (const auto& indexer = table->indexer)
-            tableIndexer = TableIndexer(resolveType(scope, *indexer->indexType), resolveType(scope, *indexer->resultType));
+        {
+            if (indexer->access == AstTableAccess::Read)
+                reportError(indexer->accessLocation.value_or(Location{}), GenericError{"read keyword is illegal here"});
+            else if (indexer->access == AstTableAccess::Write)
+                reportError(indexer->accessLocation.value_or(Location{}), GenericError{"write keyword is illegal here"});
+            else if (indexer->access == AstTableAccess::ReadWrite)
+                tableIndexer = TableIndexer(resolveType(scope, *indexer->indexType), resolveType(scope, *indexer->resultType));
+            else
+                ice("Unexpected property access " + std::to_string(int(indexer->access)));
+        }
 
         TableType ttv{props, tableIndexer, scope->level, TableState::Sealed};
         ttv.definitionModuleName = currentModule->name;
@@ -6022,7 +6060,7 @@ void TypeChecker::resolve(const TypeGuardPredicate& typeguardP, RefinementMap& r
         return refine(isBoolean, booleanType);
     else if (typeguardP.kind == "thread")
         return refine(isThread, threadType);
-    else if (FFlag::LuauBufferTypeck && typeguardP.kind == "buffer")
+    else if (typeguardP.kind == "buffer")
         return refine(isBuffer, bufferType);
     else if (typeguardP.kind == "table")
     {

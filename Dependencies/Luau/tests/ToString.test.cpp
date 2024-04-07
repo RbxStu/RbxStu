@@ -14,6 +14,7 @@ LUAU_FASTFLAG(LuauRecursiveTypeParameterRestriction);
 LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution);
 LUAU_FASTFLAG(LuauCheckedFunctionSyntax);
 LUAU_FASTFLAG(DebugLuauSharedSelf);
+LUAU_FASTFLAG(LuauStringifyCyclesRootedAtPacks);
 
 TEST_SUITE_BEGIN("ToString");
 
@@ -878,7 +879,11 @@ TEST_CASE_FIXTURE(Fixture, "toStringNamedFunction_include_self_param")
 
     TypeId parentTy = requireType("foo");
     auto ttv = get<TableType>(follow(parentTy));
-    auto ftv = get<FunctionType>(follow(ttv->props.at("method").type()));
+    REQUIRE(ttv);
+
+    TypeId methodTy = ttv->props.at("method").type();
+    auto ftv = get<FunctionType>(follow(methodTy));
+    REQUIRE_MESSAGE(ftv, methodTy);
 
     if (FFlag::DebugLuauDeferredConstraintResolution)
         CHECK_EQ("foo:method(self: unknown, arg: string): ()", toStringNamedFunction("foo:method", *ftv));
@@ -931,18 +936,17 @@ TEST_CASE_FIXTURE(Fixture, "tostring_unsee_ttv_if_array")
 TEST_CASE_FIXTURE(Fixture, "tostring_error_mismatch")
 {
     CheckResult result = check(R"(
---!strict
-   function f1() : {a : number, b : string, c : { d : number}}
-     return { a = 1, b = "a", c = {d = "a"}}
-   end
+        --!strict
+        function f1() : {a : number, b : string, c : { d : number}}
+            return { a = 1, b = "b", c = {d = "d"}}
+        end
+    )");
 
-)");
-    //clang-format off
-    std::string expected =
-        (FFlag::DebugLuauDeferredConstraintResolution)
-            ? R"(Type pack '{| a: number, b: string, c: {| d: string |} |}' could not be converted into '{ a: number, b: string, c: { d: number } }'; at [0]["c"]["d"], string is not exactly number)"
-            :
-            R"(Type
+    std::string expected;
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+        expected = R"(Type pack '{ a: number, b: string, c: { d: string } }' could not be converted into '{ a: number, b: string, c: { d: number } }'; at [0][read "c"][read "d"], string is not exactly number)";
+    else
+        expected = R"(Type
     '{ a: number, b: string, c: { d: string } }'
 could not be converted into
     '{| a: number, b: string, c: {| d: number |} |}'
@@ -955,11 +959,10 @@ could not be converted into
 caused by:
   Property 'd' is not compatible.
 Type 'string' could not be converted into 'number' in an invariant context)";
-    //clang-format on
-    //
-    std::string actual = toString(result.errors[0]);
 
     LUAU_REQUIRE_ERROR_COUNT(1, result);
+
+    std::string actual = toString(result.errors[0]);
 
     CHECK(expected == actual);
 }
@@ -984,4 +987,50 @@ local f = abs
     TypeId fn = requireType("f");
     CHECK("@checked (number) -> number" == toString(fn));
 }
+
+TEST_CASE_FIXTURE(Fixture, "read_only_properties")
+{
+    ScopedFastFlag sff{FFlag::DebugLuauDeferredConstraintResolution, true};
+
+    CheckResult result = check(R"(
+        type A = {x: string}
+        type B = {read x: string}
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+
+    CHECK("{ x: string }" == toString(requireTypeAlias("A"), {true}));
+    CHECK("{ read x: string }" == toString(requireTypeAlias("B"), {true}));
+}
+
+TEST_CASE_FIXTURE(Fixture, "cycle_rooted_in_a_pack")
+{
+    ScopedFastFlag sff{FFlag::LuauStringifyCyclesRootedAtPacks, true};
+
+    TypeArena arena;
+
+    TypePackId thePack = arena.addTypePack({builtinTypes->numberType, builtinTypes->numberType});
+    TypePack* packPtr = getMutable<TypePack>(thePack);
+    REQUIRE(packPtr);
+
+    const TableType::Props theProps = {
+        {"BaseField", Property::readonly(builtinTypes->unknownType)},
+        {"BaseMethod", Property::readonly(arena.addType(
+            FunctionType{
+                thePack,
+                arena.addTypePack({})
+            }
+        ))}
+    };
+
+    TypeId theTable = arena.addType(TableType{theProps, {}, TypeLevel{}, TableState::Sealed});
+
+    packPtr->head[0] = theTable;
+
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+        CHECK("tp1 where tp1 = { read BaseField: unknown, read BaseMethod: (tp1) -> () }, number" == toString(thePack));
+    else
+        CHECK("tp1 where tp1 = {| BaseField: unknown, BaseMethod: (tp1) -> () |}, number" == toString(thePack));
+}
+
 TEST_SUITE_END();

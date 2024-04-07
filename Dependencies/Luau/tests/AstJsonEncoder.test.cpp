@@ -11,14 +11,10 @@
 
 using namespace Luau;
 
-LUAU_FASTFLAG(LuauClipExtraHasEndProps);
-
 struct JsonEncoderFixture
 {
     Allocator allocator;
     AstNameTable names{allocator};
-
-    ScopedFastFlag sff{FFlag::LuauClipExtraHasEndProps, true};
 
     ParseResult parse(std::string_view src)
     {
@@ -95,8 +91,6 @@ TEST_CASE("basic_escaping")
 
 TEST_CASE("encode_AstStatBlock")
 {
-    ScopedFastFlag sff{FFlag::LuauClipExtraHasEndProps, true};
-
     AstLocal astlocal{AstName{"a_local"}, Location(), nullptr, 0, 0, nullptr};
     AstLocal* astlocalarray[] = {&astlocal};
 
@@ -483,7 +477,7 @@ TEST_CASE_FIXTURE(JsonEncoderFixture, "encode_AstTypeFunction")
     AstStat* statement = expectParseStatement(R"(type fun = (string, bool, named: number) -> ())");
 
     std::string_view expected =
-            R"({"type":"AstStatTypeAlias","location":"0,0 - 0,46","name":"fun","generics":[],"genericPacks":[],"type":{"type":"AstTypeFunction","location":"0,11 - 0,46","generics":[],"genericPacks":[],"argTypes":{"type":"AstTypeList","types":[{"type":"AstTypeReference","location":"0,12 - 0,18","name":"string","nameLocation":"0,12 - 0,18","parameters":[]},{"type":"AstTypeReference","location":"0,20 - 0,24","name":"bool","nameLocation":"0,20 - 0,24","parameters":[]},{"type":"AstTypeReference","location":"0,33 - 0,39","name":"number","nameLocation":"0,33 - 0,39","parameters":[]}]},"argNames":[null,null,{"type":"AstArgumentName","name":"named","location":"0,26 - 0,31"}],"returnTypes":{"type":"AstTypeList","types":[]}},"exported":false})";
+        R"({"type":"AstStatTypeAlias","location":"0,0 - 0,46","name":"fun","generics":[],"genericPacks":[],"type":{"type":"AstTypeFunction","location":"0,11 - 0,46","generics":[],"genericPacks":[],"argTypes":{"type":"AstTypeList","types":[{"type":"AstTypeReference","location":"0,12 - 0,18","name":"string","nameLocation":"0,12 - 0,18","parameters":[]},{"type":"AstTypeReference","location":"0,20 - 0,24","name":"bool","nameLocation":"0,20 - 0,24","parameters":[]},{"type":"AstTypeReference","location":"0,33 - 0,39","name":"number","nameLocation":"0,33 - 0,39","parameters":[]}]},"argNames":[null,null,{"type":"AstArgumentName","name":"named","location":"0,26 - 0,31"}],"returnTypes":{"type":"AstTypeList","types":[]}},"exported":false})";
 
     CHECK(toJson(statement) == expected);
 }

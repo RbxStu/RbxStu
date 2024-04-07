@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <string.h>
 
-LUAU_FASTFLAG(LuauVectorLiterals)
-LUAU_FASTFLAG(LuauCompileRevK)
+LUAU_FASTFLAGVARIABLE(LuauCompileNoJumpLineRetarget, false)
+LUAU_FASTFLAG(LuauCompileRepeatUntilSkippedLocals)
 
 namespace Luau
 {
@@ -972,7 +972,11 @@ void BytecodeBuilder::foldJumps()
         if (LUAU_INSN_OP(jumpInsn) == LOP_JUMP && LUAU_INSN_OP(targetInsn) == LOP_RETURN)
         {
             insns[jumpLabel] = targetInsn;
-            lines[jumpLabel] = lines[targetLabel];
+
+            if (!FFlag::LuauCompileNoJumpLineRetarget)
+            {
+                lines[jumpLabel] = lines[targetLabel];
+            }
         }
         else if (int16_t(offset) == offset)
         {
@@ -1125,7 +1129,7 @@ std::string BytecodeBuilder::getError(const std::string& message)
 uint8_t BytecodeBuilder::getVersion()
 {
     // This function usually returns LBC_VERSION_TARGET but may sometimes return a higher number (within LBC_VERSION_MIN/MAX) under fast flags
-    return (FFlag::LuauVectorLiterals || FFlag::LuauCompileRevK) ? 5 : LBC_VERSION_TARGET;
+    return LBC_VERSION_TARGET;
 }
 
 uint8_t BytecodeBuilder::getTypeEncodingVersion()
@@ -2174,13 +2178,23 @@ std::string BytecodeBuilder::dumpCurrentFunction(std::vector<int>& dumpinstoffs)
         {
             const DebugLocal& l = debugLocals[i];
 
-            LUAU_ASSERT(l.startpc < l.endpc);
-            LUAU_ASSERT(l.startpc < lines.size());
-            LUAU_ASSERT(l.endpc <= lines.size()); // endpc is exclusive in the debug info, but it's more intuitive to print inclusive data
+            if (FFlag::LuauCompileRepeatUntilSkippedLocals && l.startpc == l.endpc)
+            {
+                LUAU_ASSERT(l.startpc < lines.size());
 
-            // it would be nice to emit name as well but it requires reverse lookup through stringtable
-            formatAppend(result, "local %d: reg %d, start pc %d line %d, end pc %d line %d\n", int(i), l.reg, l.startpc, lines[l.startpc],
-                l.endpc - 1, lines[l.endpc - 1]);
+                // it would be nice to emit name as well but it requires reverse lookup through stringtable
+                formatAppend(result, "local %d: reg %d, start pc %d line %d, no live range\n", int(i), l.reg, l.startpc, lines[l.startpc]);
+            }
+            else
+            {
+                LUAU_ASSERT(l.startpc < l.endpc);
+                LUAU_ASSERT(l.startpc < lines.size());
+                LUAU_ASSERT(l.endpc <= lines.size()); // endpc is exclusive in the debug info, but it's more intuitive to print inclusive data
+
+                // it would be nice to emit name as well but it requires reverse lookup through stringtable
+                formatAppend(result, "local %d: reg %d, start pc %d line %d, end pc %d line %d\n", int(i), l.reg, l.startpc, lines[l.startpc],
+                    l.endpc - 1, lines[l.endpc - 1]);
+            }
         }
     }
 

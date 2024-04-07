@@ -273,7 +273,6 @@ TEST_CASE_FIXTURE(Fixture, "discriminate_from_x_not_equal_to_nil")
         // Should be {| x: nil, y: nil |}
         CHECK_EQ("{| x: nil, y: nil |} | {| x: string, y: number |}", toString(requireTypeAtPosition({7, 28})));
     }
-
 }
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "bail_early_if_unification_is_too_complicated" * doctest::timeout(0.5))
@@ -1106,6 +1105,45 @@ foo(1 :: any)
     LUAU_REQUIRE_ERRORS(result);
 }
 
+TEST_CASE_FIXTURE(Fixture, "luau_roact_useState_nilable_state_1")
+{
+    ScopedFastFlag sff{FFlag::DebugLuauDeferredConstraintResolution, true};
+
+    CheckResult result = check(R"(
+        type Dispatch<A> = (A) -> ()
+        type BasicStateAction<S> = ((S) -> S) | S
+
+        type ScriptConnection = { Disconnect: (ScriptConnection) -> () }
+
+        local blah = nil :: any
+
+        local function useState<S>(
+            initialState: (() -> S) | S,
+            ...
+        ): (S, Dispatch<BasicStateAction<S>>)
+            return blah, blah
+        end
+
+        local a, b = useState(nil :: ScriptConnection?)
+
+        if a then
+            a:Disconnect()
+            b(nil :: ScriptConnection?)
+        end
+    )");
+
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+        LUAU_REQUIRE_NO_ERRORS(result);
+    else
+    {
+        // This is a known bug in the old solver.
+
+        LUAU_REQUIRE_ERROR_COUNT(1, result);
+
+        CHECK(Location{{19, 14}, {19, 41}} == result.errors[0].location);
+    }
+}
+
 TEST_CASE_FIXTURE(BuiltinsFixture, "luau_roact_useState_minimization")
 {
     // We don't expect this test to work on the old solver, but it also does not yet work on the new solver.
@@ -1140,6 +1178,44 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "luau_roact_useState_minimization")
     )");
 
     LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "bin_prov")
+{
+    CheckResult result = check(R"(
+        local Bin = {}
+
+        function Bin:add(item)
+            self.head = { item = item}
+            return item
+        end
+
+        function Bin:destroy()
+            while self.head do
+                local item = self.head.item
+                if type(item) == "function" then
+                    item()
+                elseif item.Destroy ~= nil then
+                end
+                self.head = self.head.next
+            end
+        end
+    )");
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "update_phonemes_minimized")
+{
+    CheckResult result = check(R"(
+        local video
+        function(response)
+            for index = 1, #response do
+                video = video
+            end
+            return video
+        end
+    )");
+
+    LUAU_REQUIRE_ERRORS(result);
 }
 
 TEST_SUITE_END();

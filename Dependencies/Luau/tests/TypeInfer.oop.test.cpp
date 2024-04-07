@@ -219,7 +219,7 @@ TEST_CASE_FIXTURE(Fixture, "inferred_methods_of_free_tables_have_the_same_level_
     check(R"(
         function Base64FileReader(data)
             local reader = {}
-            local index: number
+            local index: number = 0
 
             function reader:PeekByte()
                 return data:byte(index)
@@ -500,6 +500,23 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "promise_type_error_too_complex" * doctest::t
     )");
 
     LUAU_REQUIRE_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(Fixture, "method_should_not_create_cyclic_type")
+{
+    ScopedFastFlag sff(FFlag::DebugLuauDeferredConstraintResolution, true);
+
+    CheckResult result = check(R"(
+        local Component = {}
+
+        function Component:__resolveUpdate(incomingState)
+            local oldState = self.state
+            incomingState = oldState
+            self.state = incomingState
+        end
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
 }
 
 TEST_SUITE_END();

@@ -20,8 +20,8 @@
 #include <string>
 
 LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution)
-LUAU_FASTFLAGVARIABLE(LuauToStringPrettifyLocation, false)
 LUAU_FASTFLAGVARIABLE(LuauToStringSimpleCompositeTypesSingleLine, false)
+LUAU_FASTFLAGVARIABLE(LuauStringifyCyclesRootedAtPacks, false)
 
 /*
  * Enables increasing levels of verbosity for Luau type names when stringifying.
@@ -33,7 +33,7 @@ LUAU_FASTFLAGVARIABLE(LuauToStringSimpleCompositeTypesSingleLine, false)
  * 0: Disabled, no changes.
  *
  * 1: Prefix free/generic types with free- and gen-, respectively. Also reveal
- * hidden variadic tails.
+ * hidden variadic tails. Display block count for local types.
  *
  * 2: Suffix free/generic types with their scope depth.
  *
@@ -374,7 +374,7 @@ struct TypeStringifier
             tv->ty);
     }
 
-    void stringify(const std::string& name, const Property& prop)
+    void emitKey(const std::string& name)
     {
         if (isIdentifier(name))
             state.emit(name);
@@ -385,31 +385,46 @@ struct TypeStringifier
             state.emit("\"]");
         }
         state.emit(": ");
+    }
 
-        if (FFlag::DebugLuauReadWriteProperties)
+    void _newStringify(const std::string& name, const Property& prop)
+    {
+        bool comma = false;
+        if (prop.isShared())
         {
-            // We special case the stringification if the property's read and write types are shared.
-            if (prop.isShared())
-                return stringify(*prop.readType());
-
-            // Otherwise emit them separately.
-            if (auto ty = prop.readType())
-            {
-                state.emit("read ");
-                stringify(*ty);
-            }
-
-            if (prop.readType() && prop.writeType())
-                state.emit(" + ");
-
-            if (auto ty = prop.writeType())
-            {
-                state.emit("write ");
-                stringify(*ty);
-            }
-        }
-        else
+            emitKey(name);
             stringify(prop.type());
+            return;
+        }
+
+        if (prop.readTy)
+        {
+            state.emit("read ");
+            emitKey(name);
+            stringify(*prop.readTy);
+            comma = true;
+        }
+        if (prop.writeTy)
+        {
+            if (comma)
+            {
+                state.emit(",");
+                state.newline();
+            }
+
+            state.emit("write ");
+            emitKey(name);
+            stringify(*prop.writeTy);
+        }
+    }
+
+    void stringify(const std::string& name, const Property& prop)
+    {
+        if (FFlag::DebugLuauDeferredConstraintResolution)
+            return _newStringify(name, prop);
+
+        emitKey(name);
+        stringify(prop.type());
     }
 
     void stringify(TypePackId tp);
@@ -516,6 +531,12 @@ struct TypeStringifier
     {
         state.emit("l-");
         state.emit(lt.name);
+        if (FInt::DebugLuauVerboseTypeNames >= 1)
+        {
+            state.emit("[");
+            state.emit(lt.blockCount);
+            state.emit("]");
+        }
         state.emit("=[");
         stringify(lt.domain);
         state.emit("]");
@@ -1278,8 +1299,8 @@ void TypeStringifier::stringify(TypePackId tpid, const std::vector<std::optional
     tps.stringify(tpid);
 }
 
-static void assignCycleNames(const std::set<TypeId>& cycles, const std::set<TypePackId>& cycleTPs,
-    DenseHashMap<TypeId, std::string>& cycleNames, DenseHashMap<TypePackId, std::string>& cycleTpNames, bool exhaustive)
+static void assignCycleNames(const std::set<TypeId>& cycles, const std::set<TypePackId>& cycleTPs, DenseHashMap<TypeId, std::string>& cycleNames,
+    DenseHashMap<TypePackId, std::string>& cycleTpNames, bool exhaustive)
 {
     int nextIndex = 1;
 
@@ -1471,10 +1492,21 @@ ToStringResult toStringDetailed(TypePackId tp, ToStringOptions& opts)
     else
         tvs.stringify(tp);
 
-    if (!cycles.empty())
+    if (FFlag::LuauStringifyCyclesRootedAtPacks)
     {
-        result.cycle = true;
-        state.emit(" where ");
+        if (!cycles.empty() || !cycleTPs.empty())
+        {
+            result.cycle = true;
+            state.emit(" where ");
+        }
+    }
+    else
+    {
+        if (!cycles.empty())
+        {
+            result.cycle = true;
+            state.emit(" where ");
+        }
     }
 
     state.exhaustive = true;
@@ -1499,6 +1531,32 @@ ToStringResult toStringDetailed(TypePackId tp, ToStringOptions& opts)
             cycleTy->ty);
 
         semi = true;
+    }
+
+    if (FFlag::LuauStringifyCyclesRootedAtPacks)
+    {
+        std::vector<std::pair<TypePackId, std::string>> sortedCycleTpNames{state.cycleTpNames.begin(), state.cycleTpNames.end()};
+        std::sort(sortedCycleTpNames.begin(), sortedCycleTpNames.end(), [](const auto& a, const auto& b) {
+            return a.second < b.second;
+        });
+
+        TypePackStringifier tps{tvs.state};
+
+        for (const auto& [cycleTp, name] : sortedCycleTpNames)
+        {
+            if (semi)
+                state.emit(" ; ");
+
+            state.emit(name);
+            state.emit(" = ");
+            Luau::visit(
+                [&tps, cycleTp = cycleTp](auto t) {
+                    return tps(cycleTp, t);
+                },
+                cycleTp->ty);
+
+            semi = true;
+        }
     }
 
     if (opts.maxTypeLength > 0 && result.name.length() > opts.maxTypeLength)
@@ -1701,7 +1759,7 @@ std::string toString(const Constraint& constraint, ToStringOptions& opts)
         {
             std::string subStr = tos(c.subPack);
             std::string superStr = tos(c.superPack);
-            return subStr + " <: " + superStr;
+            return subStr + " <...: " + superStr;
         }
         else if constexpr (std::is_same_v<T, GeneralizationConstraint>)
         {
@@ -1736,22 +1794,33 @@ std::string toString(const Constraint& constraint, ToStringOptions& opts)
         {
             return "call " + tos(c.fn) + "( " + tos(c.argsPack) + " )" + " with { result = " + tos(c.result) + " }";
         }
+        else if constexpr (std::is_same_v<T, FunctionCheckConstraint>)
+        {
+            return "function_check " + tos(c.fn) + " " + tos(c.argsPack);
+        }
         else if constexpr (std::is_same_v<T, PrimitiveTypeConstraint>)
         {
-            return tos(c.resultType) + " ~ prim " + tos(c.expectedType) + ", " + tos(c.singletonType) + ", " + tos(c.multitonType);
+            if (c.expectedType)
+                return "prim " + tos(c.freeType) + "[expected: " + tos(*c.expectedType) + "] as " + tos(c.primitiveType);
+            else
+                return "prim " + tos(c.freeType) + " as " + tos(c.primitiveType);
         }
         else if constexpr (std::is_same_v<T, HasPropConstraint>)
         {
-            return tos(c.resultType) + " ~ hasProp " + tos(c.subjectType) + ", \"" + c.prop + "\"";
+            return tos(c.resultType) + " ~ hasProp " + tos(c.subjectType) + ", \"" + c.prop + "\" ctx=" + std::to_string(int(c.context));
         }
         else if constexpr (std::is_same_v<T, SetPropConstraint>)
         {
             const std::string pathStr = c.path.size() == 1 ? "\"" + c.path[0] + "\"" : "[\"" + join(c.path, "\", \"") + "\"]";
             return tos(c.resultType) + " ~ setProp " + tos(c.subjectType) + ", " + pathStr + " " + tos(c.propType);
         }
+        else if constexpr (std::is_same_v<T, HasIndexerConstraint>)
+        {
+            return tos(c.resultType) + " ~ hasIndexer " + tos(c.subjectType) + " " + tos(c.indexType);
+        }
         else if constexpr (std::is_same_v<T, SetIndexerConstraint>)
         {
-            return tos(c.resultType) + " ~ setIndexer " + tos(c.subjectType) + " [ " + tos(c.indexType) + " ] " + tos(c.propType);
+            return "setIndexer " + tos(c.subjectType) + " [ " + tos(c.indexType) + " ] " + tos(c.propType);
         }
         else if constexpr (std::is_same_v<T, SingletonOrTopTypeConstraint>)
         {
@@ -1764,7 +1833,9 @@ std::string toString(const Constraint& constraint, ToStringOptions& opts)
                 return result + " ~ if isSingleton D then D else unknown where D = " + discriminant;
         }
         else if constexpr (std::is_same_v<T, UnpackConstraint>)
-            return tos(c.resultPack) + " ~ unpack " + tos(c.sourcePack);
+            return tos(c.resultPack) + " ~ ...unpack " + tos(c.sourcePack);
+        else if constexpr (std::is_same_v<T, Unpack1Constraint>)
+            return tos(c.resultType) + " ~ unpack " + tos(c.sourceType);
         else if constexpr (std::is_same_v<T, SetOpConstraint>)
         {
             const char* op = c.mode == SetOpConstraint::Union ? " | " : " & ";
@@ -1788,6 +1859,8 @@ std::string toString(const Constraint& constraint, ToStringOptions& opts)
         {
             return "reduce " + tos(c.tp);
         }
+        else if constexpr (std::is_same_v<T, EqualityConstraint>)
+            return "equality: " + tos(c.resultType) + " ~ " + tos(c.assignmentType);
         else
             static_assert(always_false_v<T>, "Non-exhaustive constraint switch");
     };
@@ -1849,15 +1922,8 @@ std::string toString(const Position& position)
 
 std::string toString(const Location& location, int offset, bool useBegin)
 {
-    if (FFlag::LuauToStringPrettifyLocation)
-    {
-        return "(" + std::to_string(location.begin.line + offset) + ", " + std::to_string(location.begin.column + offset) + ") - (" +
-               std::to_string(location.end.line + offset) + ", " + std::to_string(location.end.column + offset) + ")";
-    }
-    else
-    {
-        return "Location { " + toString(location.begin) + ", " + toString(location.end) + " }";
-    }
+    return "(" + std::to_string(location.begin.line + offset) + ", " + std::to_string(location.begin.column + offset) + ") - (" +
+            std::to_string(location.end.line + offset) + ", " + std::to_string(location.end.column + offset) + ")";
 }
 
 std::string toString(const TypeOrPack& tyOrTp, ToStringOptions& opts)

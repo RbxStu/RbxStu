@@ -195,6 +195,15 @@ static void errorToString(std::ostream& stream, const T& err)
         stream << "DynamicPropertyLookupOnClassesUnsafe { " << toString(err.ty) << " }";
     else if constexpr (std::is_same_v<T, UninhabitedTypeFamily>)
         stream << "UninhabitedTypeFamily { " << toString(err.ty) << " }";
+    else if constexpr (std::is_same_v<T, ExplicitFunctionAnnotationRecommended>)
+    {
+        std::string recArgs = "[";
+        for (auto [s, t] : err.recommendedArgs)
+            recArgs += " " + s + ": " + toString(t);
+        recArgs += " ]";
+        stream << "ExplicitFunctionAnnotationRecommended { recommmendedReturn = '" + toString(err.recommendedReturn) +
+                      "', recommmendedArgs = " + recArgs + "}";
+    }
     else if constexpr (std::is_same_v<T, UninhabitedTypePackFamily>)
         stream << "UninhabitedTypePackFamily { " << toString(err.tp) << " }";
     else if constexpr (std::is_same_v<T, WhereClauseNeeded>)
@@ -207,6 +216,15 @@ static void errorToString(std::ostream& stream, const T& err)
     else if constexpr (std::is_same_v<T, NonStrictFunctionDefinitionError>)
         stream << "NonStrictFunctionDefinitionError { functionName = '" + err.functionName + "', argument = '" + err.argument +
                       "', argumentType = '" + toString(err.argumentType) + "' }";
+    else if constexpr (std::is_same_v<T, PropertyAccessViolation>)
+        stream << "PropertyAccessViolation { table = " << toString(err.table) << ", prop = '" << err.key << "', context = " << err.context << " }";
+    else if constexpr (std::is_same_v<T, CheckedFunctionIncorrectArgs>)
+        stream << "CheckedFunction {  functionName = '" + err.functionName + ", expected = " + std::to_string(err.expected) +
+                      ", actual = " + std::to_string(err.actual) + "}";
+    else if constexpr (std::is_same_v<T, UnexpectedTypeInSubtyping>)
+        stream << "UnexpectedTypeInSubtyping {  ty = '" + toString(err.ty) + "' }";
+    else if constexpr (std::is_same_v<T, UnexpectedTypePackInSubtyping>)
+        stream << "UnexpectedTypePackInSubtyping {  tp = '" + toString(err.tp) + "' }";
     else
         static_assert(always_false_v<T>, "Non-exhaustive type switch");
 }

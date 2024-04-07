@@ -8,6 +8,7 @@
 #include "Luau/Type.h"
 #include "Luau/VisitType.h"
 
+#include "ClassFixture.h"
 #include "Fixture.h"
 
 #include "doctest.h"
@@ -21,6 +22,24 @@ LUAU_FASTINT(LuauTarjanChildLimit);
 
 TEST_SUITE_BEGIN("TypeInferFunctions");
 
+TEST_CASE_FIXTURE(Fixture, "overload_resolution")
+{
+    CheckResult result = check(R"(
+        type A = (number) -> string
+        type B = (string) -> number
+
+        local function foo(f: A & B)
+            return f(1), f("five")
+        end
+    )");
+    LUAU_REQUIRE_NO_ERRORS(result);
+    TypeId t = requireType("foo");
+    const FunctionType* fooType = get<FunctionType>(requireType("foo"));
+    REQUIRE(fooType != nullptr);
+
+    CHECK(toString(t) == "(((number) -> string) & ((string) -> number)) -> (string, number)");
+}
+
 TEST_CASE_FIXTURE(Fixture, "tc_function")
 {
     CheckResult result = check("function five() return 5 end");
@@ -32,13 +51,30 @@ TEST_CASE_FIXTURE(Fixture, "tc_function")
 
 TEST_CASE_FIXTURE(Fixture, "check_function_bodies")
 {
-    CheckResult result = check("function myFunction()    local a = 0    a = true    end");
+    CheckResult result = check(R"(
+        function myFunction(): number
+            local a = 0
+            a = true
+            return a
+        end
+    )");
+
     LUAU_REQUIRE_ERROR_COUNT(1, result);
 
-    CHECK_EQ(result.errors[0], (TypeError{Location{Position{0, 44}, Position{0, 48}}, TypeMismatch{
-                                                                                          builtinTypes->numberType,
-                                                                                          builtinTypes->booleanType,
-                                                                                      }}));
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+    {
+        const TypePackMismatch* tm = get<TypePackMismatch>(result.errors[0]);
+        REQUIRE(tm);
+        CHECK(toString(tm->wantedTp) == "number");
+        CHECK(toString(tm->givenTp) == "boolean");
+    }
+    else
+    {
+        CHECK_EQ(result.errors[0], (TypeError{Location{Position{3, 16}, Position{3, 20}}, TypeMismatch{
+                                                                                              builtinTypes->numberType,
+                                                                                              builtinTypes->booleanType,
+                                                                                          }}));
+    }
 }
 
 TEST_CASE_FIXTURE(Fixture, "cannot_hoist_interior_defns_into_signature")
@@ -651,7 +687,7 @@ TEST_CASE_FIXTURE(Fixture, "higher_order_function_3")
     REQUIRE_EQ(1, argVec.size());
 
     const TableType* argType = get<TableType>(follow(argVec[0]));
-    REQUIRE(argType != nullptr);
+    REQUIRE_MESSAGE(argType != nullptr, argVec[0]);
 
     CHECK(bool(argType->indexer));
 }
@@ -1286,7 +1322,7 @@ TEST_CASE_FIXTURE(Fixture, "variadic_any_is_compatible_with_a_generic_TypePack")
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
-// https://github.com/Roblox/luau/issues/767
+// https://github.com/luau-lang/luau/issues/767
 TEST_CASE_FIXTURE(BuiltinsFixture, "variadic_any_is_compatible_with_a_generic_TypePack_2")
 {
     CheckResult result = check(R"(
@@ -2193,6 +2229,248 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "regex_benchmark_string_format_minimization")
                 string.format("invalid argument #4 to 'sub': number expected, got %s", typeof(n))
             end
         end);
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "subgeneric_typefamily_super_monomorphic")
+{
+    CheckResult result = check(R"(
+local a: (number, number) -> number = function(a, b) return a - b end
+
+a = function(a, b) return a + b end
+)");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "simple_unannotated_mutual_recursion")
+{
+    CheckResult result = check(R"(
+function even(n)
+    if n == 0 then
+        return true
+    else
+        return odd(n - 1)
+    end
+end
+
+function odd(n)
+    if n == 0 then
+        return false
+    elseif n == 1 then
+        return true
+    else
+        return even(n - 1)
+    end
+end
+)");
+
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+    {
+        LUAU_REQUIRE_ERROR_COUNT(4, result);
+        CHECK(toString(result.errors[0]) == "Type family instance sub<unknown, number> is uninhabited");
+        CHECK(toString(result.errors[1]) == "Type family instance sub<unknown, number> is uninhabited");
+        CHECK(toString(result.errors[2]) == "Type family instance sub<unknown, number> is uninhabited");
+        CHECK(toString(result.errors[3]) == "Type family instance sub<unknown, number> is uninhabited");
+    }
+    else
+    {
+        LUAU_REQUIRE_ERROR_COUNT(1, result);
+        CHECK(toString(result.errors[0]) == "Unknown type used in - operation; consider adding a type annotation to 'n'");
+    }
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "simple_lightly_annotated_mutual_recursion")
+{
+    CheckResult result = check(R"(
+function even(n: number)
+    if n == 0 then
+        return true
+    else
+        return odd(n - 1)
+    end
+end
+
+function odd(n: number)
+    if n == 0 then
+        return false
+    elseif n == 1 then
+        return true
+    else
+        return even(n - 1)
+    end
+end
+)");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+
+    CHECK_EQ("(number) -> boolean", toString(requireType("even")));
+    CHECK_EQ("(number) -> boolean", toString(requireType("odd")));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "tf_suggest_return_type")
+{
+    if (!FFlag::DebugLuauDeferredConstraintResolution)
+        return;
+    CheckResult result = check(R"(
+function fib(n)
+    return n < 2 and 1 or fib(n-1) + fib(n-2)
+end
+)");
+
+    LUAU_REQUIRE_ERRORS(result);
+    auto err = get<ExplicitFunctionAnnotationRecommended>(result.errors.back());
+    LUAU_ASSERT(err);
+    CHECK("false | number" == toString(err->recommendedReturn));
+    CHECK(err->recommendedArgs.size() == 0);
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "tf_suggest_arg_type")
+{
+    if (!FFlag::DebugLuauDeferredConstraintResolution)
+        return;
+    CheckResult result = check(R"(
+function fib(n, u)
+    return (n or u) and (n < u and n + fib(n,u))
+end
+)");
+
+    LUAU_REQUIRE_ERRORS(result);
+    auto err = get<ExplicitFunctionAnnotationRecommended>(result.errors.back());
+    LUAU_ASSERT(err);
+    CHECK("number" == toString(err->recommendedReturn));
+    CHECK(err->recommendedArgs.size() == 2);
+    CHECK("number" == toString(err->recommendedArgs[0].second));
+    CHECK("number" == toString(err->recommendedArgs[1].second));
+}
+
+TEST_CASE_FIXTURE(Fixture, "local_function_fwd_decl_doesnt_crash")
+{
+    CheckResult result = check(R"(
+        local foo
+
+        local function bar()
+            foo()
+        end
+
+        function foo()
+        end
+
+        bar()
+    )");
+
+    // This test verifies that an ICE doesn't occur, so the bulk of the test is
+    // just from running check above.
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(Fixture, "bidirectional_checking_of_callback_property")
+{
+    CheckResult result = check(R"(
+        function print(x: number) end
+
+        type Point = {x: number, y: number}
+        local T : {callback: ((Point) -> ())?} = {}
+
+        T.callback = function(p) -- No error here
+            print(p.z)           -- error here.  Point has no property z
+        end
+    )");
+
+    LUAU_REQUIRE_ERROR_COUNT(1, result);
+
+    CHECK_MESSAGE(get<UnknownProperty>(result.errors[0]), "Expected UnknownProperty but got " << result.errors[0]);
+
+    Location location = result.errors[0].location;
+    CHECK(location.begin.line == 7);
+    CHECK(location.end.line == 7);
+}
+
+TEST_CASE_FIXTURE(ClassFixture, "bidirectional_inference_of_class_methods")
+{
+    CheckResult result = check(R"(
+        local c = ChildClass.New()
+
+        -- Instead of reporting that the lambda is the wrong type, report that we are using its argument improperly.
+        c.Touched:Connect(function(other)
+            print(other.ThisDoesNotExist)
+        end)
+    )");
+
+    LUAU_REQUIRE_ERROR_COUNT(1, result);
+
+    UnknownProperty* err = get<UnknownProperty>(result.errors[0]);
+    REQUIRE(err);
+
+    CHECK("ThisDoesNotExist" == err->key);
+    CHECK("BaseClass" == toString(err->table));
+}
+
+TEST_CASE_FIXTURE(Fixture, "pass_table_literal_to_function_expecting_optional_prop")
+{
+    CheckResult result = check(R"(
+        type T = {prop: number?}
+
+        function f(t: T) end
+
+        f({prop=5})
+        f({})
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(Fixture, "dont_infer_overloaded_functions")
+{
+    CheckResult result = check(R"(
+        function getR6Attachments(model)
+            model:FindFirstChild("Right Leg")
+            model:FindFirstChild("Left Leg")
+            model:FindFirstChild("Torso")
+            model:FindFirstChild("Torso")
+            model:FindFirstChild("Head")
+            model:FindFirstChild("Left Arm")
+            model:FindFirstChild("Right Arm")
+        end
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+        CHECK("(t1) -> () where t1 = { read FindFirstChild: (t1, string) -> (...unknown) }" == toString(requireType("getR6Attachments")));
+    else
+        CHECK("<a...>(t1) -> () where t1 = {+ FindFirstChild: (t1, string) -> (a...) +}" == toString(requireType("getR6Attachments")));
+}
+
+TEST_CASE_FIXTURE(Fixture, "param_y_is_bounded_by_x_of_type_string")
+{
+    CheckResult result = check(R"(
+        local function f(x: string, y)
+            x = y
+        end
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+
+    CHECK("(string, string) -> ()" == toString(requireType("f")));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "function_that_could_return_anything_is_compatible_with_function_that_is_expected_to_return_nothing")
+{
+    CheckResult result = check(R"(
+        -- We infer foo : (g: (number) -> (...unknown)) -> ()
+        function foo(g)
+            g(0)
+        end
+
+        -- a requires a function that returns no values
+        function a(f: ((number) -> ()) -> ())
+        end
+
+        -- "Returns an unknown number of values" is close enough to "returns no values."
+        a(foo)
     )");
 
     LUAU_REQUIRE_NO_ERRORS(result);
