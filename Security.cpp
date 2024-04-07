@@ -4,30 +4,36 @@
 #include <cstdint>
 #include <StudioOffsets.h>
 #include <lstate.h>
+#include "Security.hpp"
 
-using Studio_LuaStateUserData [[maybe_unused]] = struct {
-    uint8_t __garbage__filler__[48];
-    uintptr_t user_facing_identity;
-    uint8_t __filler__[8];
-    uintptr_t obfucated_identity;
-};
 
-static void SetLuastateCapabilities(lua_State *L) {
-    // Studio_LuaStateUserData is NOT meant to represent the actual memory, just key values.
-    auto *plStateUd = static_cast<Studio_LuaStateUserData *>(L->userdata);
-    plStateUd->user_facing_identity = 8;
-    plStateUd->obfucated_identity = 0x3FFFF00 | 0x3F; // Magical constant | Identity 8.
+void RBX::Security::Bypasses::SetLuastateCapabilities(lua_State *L) {
+    if (L->userdata == nullptr) {
+        // Assume unallocated, what else would be 0 goddam.
+        L->userdata = RBX::Studio::Functions::rbxAllocate(
+                sizeof(RBX::Lua::ExtraSpace)); // Allocate structure for keyvals
+    }
+
+    // is NOT meant to represent the actual memory.
+    auto *plStateUd = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
+
+    plStateUd->identity = 8;
+    plStateUd->capabilities = 0x3FFFF00 | 0x3F; // Magical constant | Identity 8.
+    // plStateUd->taskStatus = 0;
 }
 
-static void set_proto(Proto *proto, uintptr_t *proto_identity) {
+void set_proto(Proto *proto, uintptr_t *proto_identity) {
     proto->userdata = static_cast<void *>(proto_identity);
     for (auto i = 0; i < proto->sizep; i++)
         set_proto(proto->p[i], proto_identity);
 }
 
-static void SetClosureCapabilities(Closure *cl) {
+bool RBX::Security::Bypasses::SetClosureCapabilities(Closure *cl) {
+    if (cl->isC) return false;
     auto protos = cl->l.p;
-    auto *mem = new uintptr_t{};    // We must allocate this on the heap, as ud is a pointer, if we set it as a value, it is not going to work.
+    auto *mem = reinterpret_cast<std::uintptr_t *>(RBX::Studio::Functions::rbxAllocate(
+            sizeof(std::uintptr_t)));
     *mem = 0x3FFFF00 | 0x3F;  // Magical constant | Identity 8.
     set_proto(protos, mem);
+    return true;
 }

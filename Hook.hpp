@@ -11,11 +11,11 @@
 class Hook {
     static Hook *g_hookSingleton;
 
-    FunctionTypes::lua_newthread __original__hook;
+    FunctionTypes::pseudo2addr __original__hook;
 private:
     static void *pseudo2addr__detour(lua_State *L, int idx);
 
-    static lua_State *lua_newthread__detour(lua_State *L);
+    // static lua_State *lua_newthread__detour(lua_State *L);
 
 
 public:
@@ -23,12 +23,12 @@ public:
 
     [[nodiscard]] MH_STATUS install_hook() const {
         MH_Initialize();    // init mh.
-        /*MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr), pseudo2addr__detour,
-                      reinterpret_cast<void **>(const_cast<void *(**)(lua_State *, int32_t)>(&__original__hook)));*/
-        MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::lua_newthread), lua_newthread__detour,
-                      reinterpret_cast<void **>(const_cast<lua_State *(**)(lua_State *)>(&__original__hook)));
+        MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr), pseudo2addr__detour,
+                      reinterpret_cast<void **>(const_cast<void *(**)(lua_State *, int32_t)>(&__original__hook)));
+        /*MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::lua_newthread), lua_newthread__detour,
+                      reinterpret_cast<void **>(const_cast<lua_State *(**)(lua_State *)>(&__original__hook)));*/
 
-        return MH_EnableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::lua_newthread));
+        return MH_EnableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
     }
 
     void wait_until_initialised() const {
@@ -39,10 +39,10 @@ public:
     }
 
     [[nodiscard]] MH_STATUS remove_hook() const {
-        return MH_DisableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::lua_newthread));
+        return MH_DisableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
     }
 
-    [[nodiscard]] FunctionTypes::lua_newthread get_pseudo_original() {
+    [[nodiscard]] FunctionTypes::pseudo2addr get_pseudo_original() {
         return this->__original__hook;
     }
 };

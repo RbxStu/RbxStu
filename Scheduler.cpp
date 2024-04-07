@@ -9,6 +9,7 @@
 #include "Execution.hpp"
 #include "oxorany.hpp"
 #include "Utilities.hpp"
+#include "Security.hpp"
 
 Scheduler *Scheduler::singleton = nullptr;
 
@@ -48,15 +49,24 @@ void Scheduler::Execute(SchedulerJob *job) {
 
     wprintf(oxorany(L"[Scheduler::Execute] Pushing closure...\r\n"));
     auto nLs = luaE_newthread(this->m_lsInitialisedWith);
-    if (luau_load(nLs, "@LUAU_TESTER", bytecode.c_str(), bytecode.size(), 0) != 0) {
+    nLs->global->cb = this->m_lsInitialisedWith->global->cb;
+    auto mem = malloc(0x98);    // Userdata size on rbx, check callback userthread.
+    nLs->userdata = mem;
+    memcpy(nLs->userdata, this->m_lsInitialisedWith->userdata, 0x98);
+    RBX::Security::Bypasses::SetLuastateCapabilities(nLs);
+    if (luau_load(nLs, "RLuau", bytecode.c_str(), bytecode.size(), 0) != 0) {
         wprintf(oxorany(L"Failed to load bytecode!\r\n"));
         printf(oxorany_pchar(L"%s"), lua_tostring(nLs, -1));
         wprintf(oxorany(L"\r\n"));
         return;
     }
+    auto *pClosure = const_cast<Closure *>(reinterpret_cast<const Closure *>(lua_topointer(nLs, -1)));
 
-    wprintf(oxorany(L"[Scheduler::Execute] Executing on protected call...\r\n"));
-    lua_pcall(nLs, 0, 0, 0);
+    RBX::Security::Bypasses::SetClosureCapabilities(pClosure);
+
+    wprintf(oxorany(L"[Scheduler::Execute] Executing on RBX::ScriptContext::taskDefer...\r\n"));
+    // lua_pcall(nLs, 0, 0, 0);
+    RBX::Studio::Functions::rTask_defer(nLs);   // Not using this causes issues relating to permissions.
 }
 
 lua_State *Scheduler::GetGlobalState() {

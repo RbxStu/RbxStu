@@ -9,6 +9,7 @@
 #include <Luau/Compiler.h>
 #include "oxorany.hpp"
 #include "Utilities.hpp"
+#include "Security.hpp"
 
 Execution *Execution::singleton = nullptr;
 
@@ -45,6 +46,10 @@ int Execution::lua_loadstring(lua_State *L, const std::string &code, std::string
         lua_pushlstring(L, err.c_str(), err.length());
         return 2;
     }
+
+    auto *pClosure = const_cast<Closure *>(reinterpret_cast<const Closure *>(lua_topointer(L, -1)));
+
+    RBX::Security::Bypasses::SetClosureCapabilities(pClosure);
 
     return 1;
 }

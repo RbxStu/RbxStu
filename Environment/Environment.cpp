@@ -145,7 +145,7 @@ int httpget(lua_State *L) {
 
     auto response = cpr::Get(
             cpr::Url{targetUrl},
-            cpr::Header{{oxorany_pchar(L"User-Agent"), oxorany_pchar(L"Luau/WinInet")}}
+            cpr::Header{{oxorany_pchar(L"User-Agent"), oxorany_pchar(L"Roblox/WinInet")}}
     );
 
     if (HttpStatus::IsError(response.status_code)) {
@@ -165,9 +165,9 @@ int Environment::Register(lua_State *L, bool useInitScript) {
             {("getreg"),  getreg},
             {("getgc"),   getgc},
             {("getgenv"), getgenv},
-            {("print"),   print},
-            {("warn"),    warn},
-            {("error"),   error},
+            // {("print"),   print},
+            // {("warn"),    warn},
+            // {("error"),   error},
             {("HttpGet"), httpget},
             {nullptr,     nullptr},
     };
@@ -193,6 +193,7 @@ int Environment::Register(lua_State *L, bool useInitScript) {
         std::string str = {"print\"init loaded\""};
         execution->lua_loadstring(L, str, utilities->RandomString(32));
         lua_pcall(L, 0, 0, 0);
+        //RBX::Studio::Functions::rTask_spawn(L);
         std::cout << "Init script executed." << std::endl;
     }
 
