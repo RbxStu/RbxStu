@@ -88,7 +88,7 @@ int error(lua_State *L) {
 int getgc(lua_State *L) {
     bool addTables = luaL_optboolean(L, 1, false);
 
-    lua_createtable(L, 128, 0);    // getgc table, prealloc sum space, because yes.
+    lua_createtable(L, 0, 0);    // getgc table, prealloc sum space, because yes.
 
     typedef struct {
         lua_State *pLua;
@@ -100,6 +100,8 @@ int getgc(lua_State *L) {
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "ConstantFunctionResult"
+    auto oldThreshold = L->global->GCthreshold;
+    L->global->GCthreshold = SIZE_MAX;
     // Never return true. We aren't deleting shit.
     luaM_visitgco(L, &gcCtx, [](void *ctx, lua_Page *pPage,
                                 GCObject *pGcObj) -> bool {
@@ -125,6 +127,7 @@ int getgc(lua_State *L) {
         }
         return false;
     });
+    L->global->GCthreshold = oldThreshold;
 #pragma clang diagnostic pop
 
     return 1;
