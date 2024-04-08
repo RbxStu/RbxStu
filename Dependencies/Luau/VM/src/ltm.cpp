@@ -7,7 +7,7 @@
 #include "ludata.h"
 #include "ltable.h"
 #include "lgc.h"
-
+#include "StudioOffsets.h"
 #include <string.h>
 
 // clang-format off
@@ -129,7 +129,7 @@ const TString* luaT_objtypenamestr(lua_State* L, const TValue* o)
         if (ttisstring(type))
             return tsvalue(type);
     }
-    else if (FFlag::TaggedLuData && ttislightuserdata(o))
+    else if (ttislightuserdata(o))
     {
         int tag = lightuserdatatag(o);
 

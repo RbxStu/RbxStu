@@ -7,13 +7,14 @@
 #include "lgc.h"
 #include "ldo.h"
 #include "lnumutils.h"
+#include "StudioOffsets.h"
 
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-const TValue luaO_nilobject_ = *luaO_nilobject;//{{NULL}, {0}, LUA_TNIL};
+const TValue luaO_nilobject_ = *luaO_nilobject;// {{NULL}, {0}, LUA_TNIL};
 
 int luaO_log2(unsigned int x)
 {
@@ -48,7 +49,7 @@ int luaO_rawequalObj(const TValue* t1, const TValue* t2)
         case LUA_TBOOLEAN:
             return bvalue(t1) == bvalue(t2); // boolean true must be 1 !!
         case LUA_TLIGHTUSERDATA:
-            return pvalue(t1) == pvalue(t2) && (!FFlag::TaggedLuData || lightuserdatatag(t1) == lightuserdatatag(t2));
+            return pvalue(t1) == pvalue(t2) && lightuserdatatag(t1) == lightuserdatatag(t2);
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);
@@ -71,7 +72,7 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
         case LUA_TBOOLEAN:
             return bvalue(t1) == bvalue(t2); // boolean true must be 1 !!
         case LUA_TLIGHTUSERDATA:
-            return pvalue(t1) == pvalue(t2) && (!FFlag::TaggedLuData || lightuserdatatag(t1) == lightuserdatatag(t2));
+            return pvalue(t1) == pvalue(t2) && lightuserdatatag(t1) == lightuserdatatag(t2);
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);

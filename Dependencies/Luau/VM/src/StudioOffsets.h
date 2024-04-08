@@ -47,6 +47,7 @@ namespace FunctionTypes {
     using rlua_newthread = lua_State *(__fastcall *)(lua_State *L);
     using rbxAllocate = void *(__fastcall *)(std::uintptr_t size);
     using rFromLuaState = void (__fastcall *)(lua_State *LP, lua_State *L);
+    using rLuaC_step = size_t (__fastcall *)(lua_State *L, bool assist);
 };
 
 namespace RBX::Studio::Functions {
@@ -58,6 +59,8 @@ namespace RBX::Studio::Functions {
     const static auto rlua_newthread = reinterpret_cast<FunctionTypes::rlua_newthread>(RBX::Studio::Offsets::rlua_newthread);
     const static auto rbxAllocate = reinterpret_cast<FunctionTypes::rbxAllocate>(RBX::Studio::Offsets::rbxAllocate);
     const static auto rFromLuaState = reinterpret_cast<FunctionTypes::rFromLuaState>(RBX::Studio::Offsets::rFromLuaState);
+    //  We don't require of Robloxs' luaC_step
+    //  const static auto rLuaC_step = reinterpret_cast<FunctionTypes::rLuaC_step>(RBX::Studio::Offsets::rLuaC_step);
 }
 
 /*

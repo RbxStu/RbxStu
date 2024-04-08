@@ -2,11 +2,13 @@
 // This code is based on Lua 5.x implementation licensed under MIT License; see lua_LICENSE.txt for details
 #pragma once
 
-#include <cstdarg>
-#include <cstddef>
-#include <cstdint>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "luaconf.h"
+
+
 
 // option for multiple returns in `lua_pcall' and `lua_call'
 #define LUA_MULTRET (-1)

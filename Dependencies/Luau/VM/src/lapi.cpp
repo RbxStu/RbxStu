@@ -12,6 +12,7 @@
 #include "lvm.h"
 #include "lnumutils.h"
 #include "lbuffer.h"
+#include "StudioOffsets.h"
 
 #include <string.h>
 
@@ -163,10 +164,10 @@ lua_State *lua_newthread(lua_State *L) {
     /*
     luaC_checkGC(L);
     luaC_threadbarrier(L);
-    lua_State* L1 = luaE_newthread(L);
+    lua_State *L1 = luaE_newthread(L);
     setthvalue(L, L->top, L1);
     api_incr_top(L);
-    global_State* g = L->global;
+    global_State *g = L->global;
     if (g->cb.userthread)
         g->cb.userthread(L, L1);
     return L1;*/

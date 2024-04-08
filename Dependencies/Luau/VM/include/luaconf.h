@@ -103,7 +103,7 @@
 
 // number of valid Lua lightuserdata tags
 #ifndef LUA_LUTAG_LIMIT
-#define LUA_LUTAG_LIMIT 128                                     // Correct
+#define LUA_LUTAG_LIMIT 128
 #endif
 
 // upper bound for number of size classes used by page allocator

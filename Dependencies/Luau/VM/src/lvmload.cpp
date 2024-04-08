@@ -28,7 +28,13 @@ struct TempBuffer
     {
     }
 
-    ~TempBuffer()
+    TempBuffer(const TempBuffer&) = delete;
+    TempBuffer(TempBuffer&&) = delete;
+
+    TempBuffer& operator=(const TempBuffer&) = delete;
+    TempBuffer& operator=(TempBuffer&&) = delete;
+
+    ~TempBuffer() noexcept
     {
         luaM_freearray(L, data, count, T, 0);
     }
@@ -38,6 +44,32 @@ struct TempBuffer
         LUAU_ASSERT(index < count);
         return data[index];
     }
+};
+
+struct ScopedSetGCThreshold
+{
+public:
+    ScopedSetGCThreshold(global_State* global, size_t newThreshold) noexcept
+        : global{global}
+    {
+        originalThreshold = global->GCthreshold;
+        global->GCthreshold = newThreshold;
+    }
+
+    ScopedSetGCThreshold(const ScopedSetGCThreshold&) = delete;
+    ScopedSetGCThreshold(ScopedSetGCThreshold&&) = delete;
+
+    ScopedSetGCThreshold& operator=(const ScopedSetGCThreshold&) = delete;
+    ScopedSetGCThreshold& operator=(ScopedSetGCThreshold&&) = delete;
+
+    ~ScopedSetGCThreshold() noexcept
+    {
+        global->GCthreshold = originalThreshold;
+    }
+
+private:
+    global_State* global = nullptr;
+    size_t originalThreshold = 0;
 };
 
 void luaV_getimport(lua_State* L, Table* env, TValue* k, StkId res, uint32_t id, bool propagatenil)
@@ -160,7 +192,6 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
     uint8_t version = read<uint8_t>(data, size, offset);
 
 
-
     // 0 means the rest of the bytecode is the error message
     if (version == 0)
     {
@@ -182,9 +213,7 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
     luaC_checkGC(L);
 
     // pause GC for the duration of deserialization - some objects we're creating aren't rooted
-    // TODO: if an allocation error happens mid-load, we do not unpause GC!
-    size_t GCthreshold = L->global->GCthreshold;
-    L->global->GCthreshold = SIZE_MAX;
+    const ScopedSetGCThreshold pauseGC{L->global, SIZE_MAX};
 
     // env is 0 for current environment and a stack index otherwise
     Table* envt = (env == 0) ? L->gt : hvalue(luaA_toobject(L, env));
@@ -246,31 +275,33 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
             offset += typesize;
         }
 
-        p->sizecode = readVarInt(data, size, offset);
-        p->code = luaM_newarray(L, p->sizecode, Instruction, p->memcat);
+        const int sizecode = readVarInt(data, size, offset);
+        p->code = luaM_newarray(L, sizecode, Instruction, p->memcat);
+        p->sizecode = sizecode;
+
         for (int j = 0; j < p->sizecode; ++j)
             p->code[j] = read<uint32_t>(data, size, offset);
 
         p->codeentry = p->code;
 
-        p->sizek = readVarInt(data, size, offset);
-        p->k = luaM_newarray(L, p->sizek, TValue, p->memcat);
+        const int sizek = readVarInt(data, size, offset);
+        p->k = luaM_newarray(L, sizek, TValue, p->memcat);
+        p->sizek = sizek;
 
-#ifdef HARDMEMTESTS
-        // this is redundant during normal runs, but resolveImportSafe can trigger GC checks under HARDMEMTESTS
-        // because p->k isn't fully formed at this point, we pre-fill it with nil to make subsequent setup safe
+        // Initialize the constants to nil to ensure they have a valid state
+        // in the event that some operation in the following loop fails with
+        // an exception.
         for (int j = 0; j < p->sizek; ++j)
         {
             setnilvalue(&p->k[j]);
         }
-#endif
 
         for (int j = 0; j < p->sizek; ++j)
         {
             switch (read<uint8_t>(data, size, offset))
             {
             case LBC_CONSTANT_NIL:
-                setnilvalue(&p->k[j]);
+                // All constants have already been pre-initialized to nil
                 break;
 
             case LBC_CONSTANT_BOOLEAN:
@@ -342,8 +373,10 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
             }
         }
 
-        p->sizep = readVarInt(data, size, offset);
-        p->p = luaM_newarray(L, p->sizep, Proto*, p->memcat);
+        const int sizep = readVarInt(data, size, offset);
+        p->p = luaM_newarray(L, sizep, Proto*, p->memcat);
+        p->sizep = sizep;
+
         for (int j = 0; j < p->sizep; ++j)
         {
             uint32_t fid = readVarInt(data, size, offset);
@@ -362,8 +395,10 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
             int intervals = ((p->sizecode - 1) >> p->linegaplog2) + 1;
             int absoffset = (p->sizecode + 3) & ~3;
 
-            p->sizelineinfo = absoffset + intervals * sizeof(int);
-            p->lineinfo = luaM_newarray(L, p->sizelineinfo, uint8_t, p->memcat);
+            const int sizelineinfo = absoffset + intervals * sizeof(int);
+            p->lineinfo = luaM_newarray(L, sizelineinfo, uint8_t, p->memcat);
+            p->sizelineinfo = sizelineinfo;
+
             p->abslineinfo = (int*)(p->lineinfo + absoffset);
 
             uint8_t lastoffset = 0;
@@ -385,8 +420,9 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
 
         if (debuginfo)
         {
-            p->sizelocvars = readVarInt(data, size, offset);
-            p->locvars = luaM_newarray(L, p->sizelocvars, LocVar, p->memcat);
+            const int sizelocvars = readVarInt(data, size, offset);
+            p->locvars = luaM_newarray(L, sizelocvars, LocVar, p->memcat);
+            p->sizelocvars = sizelocvars;
 
             for (int j = 0; j < p->sizelocvars; ++j)
             {
@@ -396,8 +432,9 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
                 p->locvars[j].reg = read<uint8_t>(data, size, offset);
             }
 
-            p->sizeupvalues = readVarInt(data, size, offset);
-            p->upvalues = luaM_newarray(L, p->sizeupvalues, TString*, p->memcat);
+            const int sizeupvalues = readVarInt(data, size, offset);
+            p->upvalues = luaM_newarray(L, sizeupvalues, TString*, p->memcat);
+            p->sizeupvalues = sizeupvalues;
 
             for (int j = 0; j < p->sizeupvalues; ++j)
             {
@@ -417,8 +454,6 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
     Closure* cl = luaF_newLclosure(L, 0, envt, main);
     setclvalue(L, L->top, cl);
     incr_top(L);
-
-    L->global->GCthreshold = GCthreshold;
 
     return 0;
 }
