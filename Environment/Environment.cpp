@@ -20,6 +20,7 @@
 #include "DebugLibrary.hpp"
 #include "Scheduler.hpp"
 #include "Hook.hpp"
+#include "Security.hpp"
 
 Environment *Environment::singleton = nullptr;
 
@@ -143,13 +144,13 @@ int httpget(lua_State *L) {
     std::string targetUrl = lua_tostring(L, 1);
 
     if (lua_type(L, 1) != LUA_TSTRING) {
-        luaL_error(L, (std::string(
+        luaG_runerror(L, (std::string(
                 oxorany_pchar(L"Wrong parameters given to httpget. Expected string at parameter #1, got ")) +
-                       lua_typename(L, lua_type(L, 1))).c_str());
+                          lua_typename(L, lua_type(L, 1))).c_str());
     }
 
     if (targetUrl.find(oxorany_pchar(L"http://")) != 0 && targetUrl.find(oxorany_pchar(L"https://")) != 0) {
-        luaL_error(L, oxorany_pchar(L"Invalid protocol (expected 'http://' or 'https://')"));
+        luaG_runerror(L, oxorany_pchar(L"Invalid protocol (expected 'http://' or 'https://')"));
     }
 
     auto response = cpr::Get(
@@ -195,18 +196,53 @@ int reinit(lua_State *L) {
     return 0;
 }
 
+int checkcaller(lua_State *L) {
+    auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
+
+    lua_pushboolean(L, extraSpace->identity >= 4 && extraSpace->identity <= 9 /*|| extraSpace->globalActorState ==
+                                                    0xff*/);   // Check identity and the globalActorState (which we messed with to mark our thread)
+    return 1;
+}
+
+int getidentity(lua_State *L) {
+    auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
+
+    lua_pushnumber(L, extraSpace->identity);
+    return 1;
+}
+
+int setidentity(lua_State *L) {
+    auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
+
+    auto newIdentity = luaL_optnumber(L, -1, 8);
+
+    if (newIdentity >= 9 || newIdentity < 0) {
+        luaG_runerrorL(L, "You may not set your identity below 0 or above 9.");
+    }
+
+    extraSpace->identity = newIdentity;                                                             // Apparently, identity only gets set now if you call the userthread callback, so we have to invoke it.
+    extraSpace->capabilities = 0x3FFFF00 | RBX::Security::ObfuscateIdentity(newIdentity);
+    L->global->cb.userthread(L, reinterpret_cast<lua_State *>(L->userdata));
+
+
+    return 0;
+}
+
 int Environment::Register(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
-            {("getreg"),  getreg},
-            {("getgc"),   getgc},
-            {("getgenv"), getgenv},
-            {("getrenv"), getrenv},
+            {("getreg"),      getreg},
+            {("getgc"),       getgc},
+            {("getgenv"),     getgenv},
+            {("getrenv"),     getrenv},
+            {("checkcaller"), checkcaller},
+            {("setidentity"), setidentity},
+            {("getidentity"), getidentity},
             // {("print"),   print},
             // {("warn"),    warn},
             // {("error"),   error},
-            {("HttpGet"), httpget},
-            {("reinit"),  reinit},
-            {nullptr,     nullptr},
+            {("HttpGet"),     httpget},
+            {("reinit"),      reinit},
+            {nullptr,         nullptr},
     };
 
     lua_pushvalue(L, LUA_GLOBALSINDEX);
@@ -221,19 +257,26 @@ int Environment::Register(lua_State *L, bool useInitScript) {
     std::cout << "Registering Debug Library" << std::endl;
     debugLibrary.RegisterEnvironment(L);
 
-    /*if (useInitScript) {
+    if (useInitScript) {
         std::cout << "Running init script..." << std::endl;
         auto execution{Execution::GetSingleton()};
         auto utilities{Module::Utilities::GetSingleton()};
 
         // Add init script, (someday!!!)
-        std::string str = {"print\"init loaded\""};
+        std::string str = R"(
+            local rRequire = clonefunction(require)
+            getgenv().require = newcclosure(function(moduleScript)
+                    local old = getidentity()
+                    setidentity(2)
+                    local r = rRequire(moduleScript)
+                    setidentity(old)
+            end)
+        )";
         execution->lua_loadstring(L, str, utilities->RandomString(32));
         lua_pcall(L, 0, 0, 0);
         // RBX::Studio::Functions::rTask_defer(L);
         std::cout << "Init script executed." << std::endl;
-    }*/
+    }
 
-    Sleep(1000);
     return 0;
 }
