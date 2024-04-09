@@ -19,7 +19,7 @@ void RBX::Security::Bypasses::SetLuastateCapabilities(lua_State *L) {
 
     plStateUd->identity = 8;
     plStateUd->capabilities = 0x3FFFF00 | 0x3F; // Magical constant | Identity 8.
-    // plStateUd->taskStatus = 0;
+    plStateUd->taskStatus = 0;
 }
 
 void set_proto(Proto *proto, uintptr_t *proto_identity) {
