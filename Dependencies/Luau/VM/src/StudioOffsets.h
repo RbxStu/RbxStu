@@ -21,6 +21,8 @@ namespace RBX::Studio::Offsets {
     const static std::uintptr_t pseudo2addr = RebaseAddress(0x142f2b820);
 
     const static std::uintptr_t rluaE_newthread = RebaseAddress(0x142f2bae0);
+    // Required for not crashing on errors.
+    const static std::uintptr_t rLuaD_throw = RebaseAddress(0x142f2f720);       // search for "memory allocation error: block too big". You will find luaG_runerrorL, last call is luaD_throw.
     const static std::uintptr_t rlua_newthread = RebaseAddress(0x142f29790);
     const static std::uintptr_t rbxAllocate = RebaseAddress(0x141293090);       // Exported function.
     const static std::uintptr_t rTask_defer = RebaseAddress(0x141c99560);
@@ -46,6 +48,7 @@ namespace FunctionTypes {
     using rbxAllocate = void *(__fastcall *)(std::uintptr_t size);
     using rFromLuaState = void (__fastcall *)(lua_State *LP, lua_State *L);
     using rFreeBlock = void (__fastcall *)(lua_State *L, int32_t sizeClass, void *block);
+    using rLuaD_throw = void (__fastcall *)(lua_State *L, int32_t errcode);
 };
 
 namespace RBX::Studio::Functions {
@@ -57,6 +60,7 @@ namespace RBX::Studio::Functions {
     const static auto rbxAllocate = reinterpret_cast<FunctionTypes::rbxAllocate>(RBX::Studio::Offsets::rbxAllocate);
     const static auto rFromLuaState = reinterpret_cast<FunctionTypes::rFromLuaState>(RBX::Studio::Offsets::rFromLuaState);
     const static auto rFreeBlock = reinterpret_cast<FunctionTypes::rFreeBlock>(RBX::Studio::Offsets::rFreeBlock);
+    const static auto rLuaD_throw = reinterpret_cast<FunctionTypes::rLuaD_throw>(RBX::Studio::Offsets::rLuaD_throw);
     //  We don't require of Robloxs' luaC_step
     //  const static auto rLuaC_step = reinterpret_cast<FunctionTypes::rLuaC_step>(RBX::Studio::Offsets::rLuaC_step);
 }
