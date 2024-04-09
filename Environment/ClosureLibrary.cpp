@@ -12,7 +12,7 @@
 #include "Execution.hpp"
 
 
-int iscclosure(lua_State * L) {
+int iscclosure(lua_State *L) {
     auto utilities{Module::Utilities::GetSingleton()};
     if (lua_gettop(L) < 1 || lua_type(L, 1) != LUA_TFUNCTION) {
         luaL_error(L,   // Cursed tower of pain!
@@ -25,7 +25,7 @@ int iscclosure(lua_State * L) {
     return 1;
 }
 
-int islclosure(lua_State * L) {
+int islclosure(lua_State *L) {
     auto utilities{Module::Utilities::GetSingleton()};
     if (lua_gettop(L) < 1 || lua_type(L, 1) != LUA_TFUNCTION) {
         luaL_error(L,   // Cursed tower of pain!
@@ -37,7 +37,7 @@ int islclosure(lua_State * L) {
     return 1;
 }
 
-int newcclosure(lua_State * L) {
+int newcclosure(lua_State *L) {
     auto utilities{Module::Utilities::GetSingleton()};
     auto closures{Module::Closures::GetSingleton()};
     if (lua_gettop(L) < 1 || lua_type(L, 1) != LUA_TFUNCTION) {
@@ -57,7 +57,7 @@ int newcclosure(lua_State * L) {
     return 1;
 }
 
-int newlclosure(lua_State * L) {
+int newlclosure(lua_State *L) {
     auto utilities{Module::Utilities::GetSingleton()};
     auto closures{Module::Closures::GetSingleton()};
     if (lua_gettop(L) < 1 || lua_type(L, 1) != LUA_TFUNCTION) {
@@ -77,7 +77,7 @@ int newlclosure(lua_State * L) {
     return 1;
 }
 
-int hookfunction(lua_State * L) {
+int hookfunction(lua_State *L) {
     // Being honest, I'm lazy to write all the statement for error handling I did before lol.
     luaL_checktype(L, 1, LUA_TFUNCTION);
     luaL_checktype(L, 2, LUA_TFUNCTION);
@@ -106,8 +106,8 @@ int hookfunction(lua_State * L) {
         toHook->c.f = [](lua_State *L) -> int { return 0; };
 
         for (int i = 0; i < hookWith->nupvalues; i++) {
-            TValue * cl_tval = &hookWith->c.upvals[i];
-            TValue * ncl_tval = &toHook->c.upvals[i];
+            TValue *cl_tval = &hookWith->c.upvals[i];
+            TValue *ncl_tval = &toHook->c.upvals[i];
 
             ncl_tval->value = cl_tval->value;
             ncl_tval->tt = cl_tval->tt;
@@ -147,9 +147,11 @@ int hookfunction(lua_State * L) {
     return 1;
 }
 
-int loadstring(lua_State * L) {
+int loadstring(lua_State *L) {
     auto execution{Execution::GetSingleton()};
     auto utilities{Module::Utilities::GetSingleton()};
+
+    luaL_checktype(L, 1, LUA_TSTRING);
 
     const std::string scriptText = lua_tostring(L, 1);
     const char *const chunkName = luaL_optstring(L, 2, utilities->RandomString(16).c_str());
@@ -163,8 +165,16 @@ int loadstring(lua_State * L) {
                                      chunkName);    // Return the Execution implementation of the custom luau_loadstring.
 }
 
-int cloenfunction(lua_State*L) {
+int clonefunction(lua_State *L) {
     //TODO: Implement
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+    auto closures{Module::Closures::GetSingleton()};
+    auto newClosure = closures->CloneClosure(L, reinterpret_cast<Closure *>(const_cast <void *>(lua_topointer(L, -1))));
+
+    if (newClosure == nullptr)
+        luaL_error(L, "Failed to clone closure!");
+
+    return 1;
 }
 
 void ClosureLibrary::RegisterEnvironment(lua_State *L) {
@@ -177,6 +187,7 @@ void ClosureLibrary::RegisterEnvironment(lua_State *L) {
             {("hookfunction"),   hookfunction},
             {("hookfunc"),       hookfunction},
             {("replaceclosure"), hookfunction},
+            {("clonefunction"), clonefunction},
 
             {("loadstring"),     loadstring},
             {("compile"),        loadstring},
