@@ -36,4 +36,6 @@ public:
     bool IsInitialized();
 
     lua_State *GetGlobalState();
+
+    void ReInitialize();
 };

@@ -10,6 +10,7 @@
 #include "oxorany.hpp"
 #include "Utilities.hpp"
 #include "Security.hpp"
+#include <StudioOffsets.h>
 
 Scheduler *Scheduler::singleton = nullptr;
 
@@ -90,3 +91,6 @@ bool Scheduler::IsInitialized() {
     return m_lsInitialisedWith != nullptr;
 }
 
+void Scheduler::ReInitialize() {
+    m_lsInitialisedWith = nullptr;
+}
