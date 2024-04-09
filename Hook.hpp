@@ -11,39 +11,30 @@
 class Hook {
     static Hook *g_hookSingleton;
 
-    FunctionTypes::pseudo2addr __original__hook;
+    FunctionTypes::pseudo2addr __original__pseudo2addr__hook;
+    FunctionTypes::rFreeBlock __original__freeblock__hook;
+
 private:
     static void *pseudo2addr__detour(lua_State *L, int idx);
 
-    // static lua_State *lua_newthread__detour(lua_State *L);
-
+    static void freeblock__detour(lua_State *L, int32_t sizeClass, void *block);
 
 public:
     static Hook *get_singleton() noexcept;
 
-    [[nodiscard]] MH_STATUS install_hook() const {
-        MH_Initialize();    // init mh.
-        MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr), pseudo2addr__detour,
-                      reinterpret_cast<void **>(const_cast<void *(**)(lua_State *, int32_t)>(&__original__hook)));
-        /*MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::lua_newthread), lua_newthread__detour,
-                      reinterpret_cast<void **>(const_cast<lua_State *(**)(lua_State *)>(&__original__hook)));*/
 
-        return MH_EnableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
-    }
+    MH_STATUS install_additional_hooks();
 
-    void wait_until_initialised() const {
-        auto scheduler{Scheduler::GetSingleton()};
-        do {
-            Sleep(88);
-        } while (!scheduler->IsInitialized());
-    }
+    void initialize() const;
 
-    [[nodiscard]] MH_STATUS remove_hook() const {
-        return MH_DisableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
-    }
+    [[nodiscard]] MH_STATUS install_hook() const;
 
-    [[nodiscard]] FunctionTypes::pseudo2addr get_pseudo_original() {
-        return this->__original__hook;
-    }
+    static void wait_until_initialised();
+
+    [[nodiscard]] MH_STATUS remove_hook() const;
+
+    [[nodiscard]] FunctionTypes::rFreeBlock get_freeblock_original();
+
+    [[nodiscard]] FunctionTypes::pseudo2addr get_pseudo_original();
 };
 
