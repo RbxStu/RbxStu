@@ -8,6 +8,8 @@
 
 #include "Closures.hpp"
 #include "Execution.hpp"
+#include "lgc.h"
+#include "lfunc.h"
 
 Module::Closures *Module::Closures::singleton = nullptr;
 
@@ -26,6 +28,27 @@ void Module::Closures::AddWrappedClosure(Closure *wrapper, Closure *original) {
 
 Closure *Module::Closures::FindWrappedClosure(Closure *wrapper) {
     return this->closureMap.find(wrapper)->second;
+}
+
+const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
+    if (cl->isC) {
+        Closure *newcl = luaF_newCclosure(L, cl->nupvalues, cl->env);
+        newcl->c.f = (lua_CFunction) cl->c.f;
+        newcl->c.cont = (lua_Continuation) cl->c.cont;
+        newcl->c.debugname = (const char *) cl->c.debugname;
+
+        for (int i = 0; i < cl->nupvalues; i++)
+                setobj2n (L, &newcl->c.upvals[i], &cl->c.upvals[i]);
+
+        setclvalue(L, L->top, newcl);
+        L->top++;
+        return reinterpret_cast<const Closure *>(lua_topointer(L, -1));
+    } else {
+        setclvalue(L, L->top, cl);
+        L->top++;
+        lua_clonefunction(L, -1);
+        return reinterpret_cast<const Closure *>(lua_topointer(L, -1));
+    }
 }
 
 /*

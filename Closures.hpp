@@ -41,6 +41,12 @@ namespace Module {
         void ToLClosure(lua_State *L, int idx) const;
 
         void ToCClosure(lua_State *L, int idx);
+
+        /*
+         *  Clones the given C closure, and pushes it into the top of the lua stack.
+         *  Returns the -1 index at the top (The newly cloned closure)
+         * */
+        const Closure *CloneClosure(lua_State *L, Closure *cl);
     };
 }
 
