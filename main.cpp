@@ -15,24 +15,54 @@
 #include "Hook.hpp"
 
 
-long exception_filter(PEXCEPTION_POINTERS pexceptionPointers) {
+long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
+    auto pContext = pExceptionPointers->ContextRecord;
     printf("\r\n-- WARNING: Exception handler caught an exception\r\n");
 
-    if (pexceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
+    if (pExceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
         printf("Exception Identified: EXCEPTION_ACCESS_VIOLATION\r\n");
     }
 
-    printf("Exception Caught         @ %p\r\n", pexceptionPointers->ContextRecord->Rip);
+    printf("Exception Caught         @ %p\r\n", pExceptionPointers->ContextRecord->Rip);
     printf("Module.dll               @ %p\r\n",
            reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
-    printf("Rebased Module           @ 0x%p\r\n", pexceptionPointers->ContextRecord->Rip -
+    printf("Rebased Module           @ 0x%p\r\n", pExceptionPointers->ContextRecord->Rip -
                                                   reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
     printf("RobloxStudioBeta.exe     @ %p\r\n",
            reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
 
     printf("Rebased Studio           @ 0x%p\r\n",
-           pexceptionPointers->ContextRecord->Rip -
+           pContext->Rip -
            reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
+
+    printf("-- START REGISTERS STATE --\r\n\r\n");
+
+    printf("-- START GP REGISTERS --\r\n");
+
+    printf("RAX: 0x%p\r\n", pContext->Rax);
+    printf("RBX: 0x%p\r\n", pContext->Rbx);
+    printf("RCX: 0x%p\r\n", pContext->Rcx);
+    printf("RDX: 0x%p\r\n", pContext->Rdx);
+    printf("RDI: 0x%p\r\n", pContext->Rdi);
+    printf("RSI: 0x%p\r\n", pContext->Rsi);
+    printf("-- R8 - R15 --\r\n");
+    printf("R08: 0x%p\r\n", pContext->R8);
+    printf("R09: 0x%p\r\n", pContext->R9);
+    printf("R10: 0x%p\r\n", pContext->R10);
+    printf("R11: 0x%p\r\n", pContext->R11);
+    printf("R12: 0x%p\r\n", pContext->R12);
+    printf("R13: 0x%p\r\n", pContext->R13);
+    printf("R14: 0x%p\r\n", pContext->R14);
+    printf("R15: 0x%p\r\n", pContext->R15);
+    printf("-- END GP REGISTERS --\r\n\r\n");
+
+    printf("-- START STACK POINTERS --\r\n");
+    printf("RBP: 0x%p\r\n", pContext->Rbp);
+    printf("RSP: 0x%p\r\n", pContext->Rsp);
+    printf("-- END STACK POINTERS --\r\n\r\n");
+
+    printf("-- END REGISTERS STATE --\r\n\r\n");
+
 
     printf("    -- Stack Trace:\r\n");
     SymInitialize(GetCurrentProcess(), nullptr, TRUE);
@@ -83,18 +113,25 @@ long exception_filter(PEXCEPTION_POINTERS pexceptionPointers) {
 }
 
 int main(int argc, char **argv, char **envp) {
+    // TODO: Fix Garbage Collection causing crashes.
+    // FIXME: Avoid hooking to fix it, but seems not possible due to the fact it may be caused by an Engine-level bug.
+
     SetUnhandledExceptionFilter(exception_filter);
     AllocConsole();
     freopen_s(reinterpret_cast<FILE **>(stdin), ("CONOUT$"), "w", stdout);
     freopen_s(reinterpret_cast<FILE **>(stdin), ("CONIN$"), "r", stdin);
 
     wprintf(oxorany(L"[main] Initializing hook...\r\n"));
-
     auto hook{Hook::get_singleton()};
 
+    wprintf(L"Attached to RBX::Studio::Lua::freeblock for call instrumentation and for anti-crashing.\r\n");
+    hook->initialize();
+    hook->install_additional_hooks();
     hook->install_hook();
     hook->wait_until_initialised();
     hook->remove_hook();
+
+
     wprintf(oxorany(L"[main] Hook initialized. State grabbed.\r\n"));
 
     wprintf(oxorany(L"[main] Initializing environment.\r\n"));
@@ -105,9 +142,28 @@ int main(int argc, char **argv, char **envp) {
 
     while (true) {
         str.clear();
-        wprintf(L"[main] Input lua code: ");
+        wprintf(L"\r\n[main] Input lua code: ");
         getline(std::cin, str);
-        wprintf(oxorany(L"Scheduling...\r\n"));
+        if (strcmp(str.c_str(), "reinit()") == 0) {
+            wprintf(L"Detected reinitialization request! Re-Initializing...\r\n");
+            printf("Running re-init...\r\n");
+            auto hook = Hook::get_singleton();
+            auto scheduler = Scheduler::GetSingleton();
+            auto environment = Environment::GetSingleton();
+
+            scheduler->ReInitialize();
+            hook->install_hook();
+            hook->wait_until_initialised();
+            hook->remove_hook();
+
+            environment->Register(scheduler->GetGlobalState(), true);
+
+            MessageBoxA(nullptr,
+                        "Obtained new lua_State. Scheduler re-initialized and Environment re-registered. Enjoy!",
+                        "Reinitialization Completed", MB_OK);
+            continue;
+        }
+        wprintf(oxorany(L"\r\nPushing to StudioExecutor::Scheduler...\r\n"));
         scheduler->ScheduleJob(str);
         Sleep(2000);
     }
