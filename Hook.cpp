@@ -50,6 +50,10 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
                 ignoreChecks = true;
             }
         }
+        auto ud = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
+        printf("State ExtraSpace:\r\n");
+        printf("Identity: 0x%p\r\n", ud->identity);
+        printf("Capabilities: 0x%p\r\n", ud->capabilities);
         printf("Please select your Roblox Studio window if you are using a local file!\r\n");
         printf("Attempting to initialize scheduler... \n");
         // printf("Evaluating lua_State*'s possibility of being useful...\r\n");
@@ -83,11 +87,21 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         } else {
             printf("[[Hook]] Checks ignored: You seem to have a local file opened as a place. This is not fully supported, please use a Place uploaded to RBX.\r\n");
         }
-
+        auto oldObf = static_cast<RBX::Identity>(RBX::Security::ObfuscateIdentity(ud->identity));
+        RBX::Security::Bypasses::SetLuastateCapabilities(L, RBX::Identity::Eight_Seven);
         auto nL = RBX::Studio::Functions::rlua_newthread(L);
-        RBX::Security::Bypasses::SetLuastateCapabilities(nL, RBX::Identity::Eight_Seven);
+        // RBX::Security::Bypasses::SetLuastateCapabilities(L, oldObf);
+
         auto oldTop = lua_gettop(L);
         RBX::Studio::Functions::rFromLuaState(L, nL);
+        RBX::Security::Bypasses::SetLuastateCapabilities(L, oldObf);
+
+        auto mem = malloc(0x98);    // Pointer replacement.
+        nL->userdata = mem;
+        memcpy(nL->userdata, L->userdata,
+               0x98);    // We detach it from the original lua_State* we originate it from, thus our caps still work.
+        RBX::Security::Bypasses::SetLuastateCapabilities(nL, RBX::Identity::Eight_Seven);
+
         lua_settop(L, oldTop);
         //auto L_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(L->userdata);
         //auto nL_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(nL->userdata);

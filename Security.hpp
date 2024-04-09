@@ -21,22 +21,22 @@ namespace RBX::Lua {
         struct RBX::Lua::ExtraSpace::Shared *sharedExtraSpace;
         [[maybe_unused]] char _20[8];
         Validator *CapabilitiesValidator;
-        uint64_t identity;
-        [[maybe_unused]] char _38[8];
+        uint32_t identity;
+        [[maybe_unused]] char _38[9];
         [[maybe_unused]] char _40[8];
-        uint64_t capabilities;
-        [[maybe_unused]] char _50[8];
+        uint32_t capabilities;
+        [[maybe_unused]] char _50[9];
         [[maybe_unused]] char _58[8];
         [[maybe_unused]] char _60[8];
         [[maybe_unused]] char _68[8];
         [[maybe_unused]] char _70[8];
         [[maybe_unused]] char _78[8];
         [[maybe_unused]] char _80[8];
-        [[maybe_unused]] char _88[9];
+        [[maybe_unused]] char _88[8];
+        [[maybe_unused]] char _90[1];
         [[maybe_unused]] char _91[1];
         [[maybe_unused]] char _92[1];
         uint8_t taskStatus;
-
     };
 }
 

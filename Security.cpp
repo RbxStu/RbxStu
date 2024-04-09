@@ -67,7 +67,7 @@ void RBX::Security::Bypasses::SetLuastateCapabilities(lua_State *L, RBX::Identit
     auto *plStateUd = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
     plStateUd->identity = RBX::Security::DeobfuscateIdentity(identity);
-    plStateUd->capabilities = 0x3FFFF00 | RBX::Security::ObfuscateIdentity(identity); // Magical constant | Identity 8.
+    plStateUd->capabilities = 0x3FFFF3F; // Magical constant | Identity 8.
     plStateUd->taskStatus = 0;
 }
 

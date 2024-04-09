@@ -220,10 +220,11 @@ int setidentity(lua_State *L) {
         luaG_runerrorL(L, "You may not set your identity below 0 or above 9.");
     }
 
+    // The identity seems to be consulted on the L->mainthread. Due to this, we may need to keep two lua states running. One originating from an elevated one, and one originated from a non elevated one.
+    // With this we can bypass identity, while still being able to use functions like require, which are literally a REQUIREment. Heh.
+
     extraSpace->identity = newIdentity;                                                             // Apparently, identity only gets set now if you call the userthread callback, so we have to invoke it.
     extraSpace->capabilities = 0x3FFFF00 | RBX::Security::ObfuscateIdentity(newIdentity);
-    L->global->cb.userthread(L, reinterpret_cast<lua_State *>(L->userdata));
-
 
     return 0;
 }
