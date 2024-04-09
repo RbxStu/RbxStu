@@ -54,7 +54,7 @@ void Scheduler::Execute(SchedulerJob *job) {
     auto mem = malloc(0x98);    // Userdata size on rbx, check callback userthread.
     nLs->userdata = mem;
     memcpy(nLs->userdata, this->m_lsInitialisedWith->userdata, 0x98);
-    RBX::Security::Bypasses::SetLuastateCapabilities(nLs);
+    RBX::Security::Bypasses::SetLuastateCapabilities(nLs, RBX::Identity::Eight_Seven);
     if (luau_load(nLs, "RLuau", bytecode.c_str(), bytecode.size(), 0) != 0) {
         wprintf(oxorany(L"Failed to load bytecode!\r\n"));
         printf(oxorany_pchar(L"%s"), lua_tostring(nLs, -1));

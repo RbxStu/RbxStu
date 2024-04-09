@@ -85,7 +85,7 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         }
 
         auto nL = RBX::Studio::Functions::rlua_newthread(L);
-        RBX::Security::Bypasses::SetLuastateCapabilities(nL);
+        RBX::Security::Bypasses::SetLuastateCapabilities(nL, RBX::Identity::Eight_Seven);
         auto oldTop = lua_gettop(L);
         RBX::Studio::Functions::rFromLuaState(L, nL);
         lua_settop(L, oldTop);

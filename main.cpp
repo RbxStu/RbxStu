@@ -109,6 +109,7 @@ long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
     MessageBoxA(nullptr, "ERROR", "ERROR. LOOK AT CLI.", MB_OK);
     printf("Stack frames captured - Waiting for 30s before exiting... \r\n");
     Sleep(30000);
+    exit(-1);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 

@@ -40,10 +40,31 @@ namespace RBX::Lua {
     };
 }
 
-namespace RBX::Security::Bypasses {
-    void SetLuastateCapabilities(lua_State *L);
+namespace RBX {
 
-    // Sets capabilities on Lua closures, returns false if the operation fails (i.e: The closure is a C closure).
-    bool SetClosureCapabilities(Closure *cl);
+    enum Identity {
+        One_Four = 3,
+        Two = 0,
+        Five = 1,
+        Three_Six = 0xB,
+        Eight_Seven = 0x3F,
+        Nine = 0xC
+    };
+
+    namespace Security {
+        int64_t DeobfuscateIdentity(int64_t identity);
+
+        int64_t ObfuscateIdentity(int64_t identity);
+
+        // Marks a lua_State as ours for the purposes of Check Caller, etc.
+        void MarkThread(lua_State *L);
+
+        namespace Bypasses {
+            void SetLuastateCapabilities(lua_State *L, RBX::Identity identity);
+
+            // Sets capabilities on Lua closures, returns false if the operation fails (i.e: The closure is a C closure).
+            bool SetClosureCapabilities(Closure *cl);
+        }
+    }
+
 }
-
