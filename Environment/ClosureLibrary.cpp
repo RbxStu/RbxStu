@@ -163,6 +163,10 @@ int loadstring(lua_State * L) {
                                      chunkName);    // Return the Execution implementation of the custom luau_loadstring.
 }
 
+int cloenfunction(lua_State*L) {
+    //TODO: Implement
+}
+
 void ClosureLibrary::RegisterEnvironment(lua_State *L) {
     static const luaL_Reg reg[] = {
             {("iscclosure"),     iscclosure},
