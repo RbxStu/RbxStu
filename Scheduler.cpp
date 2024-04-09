@@ -40,9 +40,14 @@ SchedulerJob Scheduler::GetSchedulerJob() {
 void Scheduler::Execute(SchedulerJob *job) {
     if (!job->bIsLuaCode) return;
     if (job->szluaCode.empty()) return;
+    auto utilities{Module::Utilities::GetSingleton()};
+    auto nSzLuaCode = std::string(
+            R"(getrenv()["string"]=getrawmetatable("").__index;getgenv().script=Instance.new("LocalScript");)") +
+                      job->szluaCode;
+
     wprintf(oxorany(L"[Scheduler::Execute] Compiling bytecode...\r\n"));
     auto execution{Execution::GetSingleton()};
-    auto bytecode = execution->Compile(job->szluaCode);
+    auto bytecode = execution->Compile(nSzLuaCode);
     wprintf(oxorany(L"[Scheduler::Execute] Compiled Bytecode:\r\n"));
     printf(oxorany_pchar(
                    L"\r\n--------------------\r\n-- BYTECODE START --\r\n--------------------\r\n%s\r\n--------------------\r\n--  BYTECODE END  --\r\n--------------------\r\n"),
@@ -55,7 +60,9 @@ void Scheduler::Execute(SchedulerJob *job) {
     nLs->userdata = mem;
     memcpy(nLs->userdata, this->m_lsInitialisedWith->userdata, 0x98);
     RBX::Security::Bypasses::SetLuastateCapabilities(nLs, RBX::Identity::Eight_Seven);
-    if (luau_load(nLs, "RLuau", bytecode.c_str(), bytecode.size(), 0) != 0) {
+    std::string chunkName;
+    if (chunkName.empty()) chunkName = utilities->RandomString(32);
+    if (luau_load(nLs, chunkName.c_str(), bytecode.c_str(), bytecode.size(), 0) != 0) {
         wprintf(oxorany(L"Failed to load bytecode!\r\n"));
         printf(oxorany_pchar(L"%s"), lua_tostring(nLs, -1));
         wprintf(oxorany(L"\r\n"));

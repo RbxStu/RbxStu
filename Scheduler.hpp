@@ -7,9 +7,11 @@
 #include <queue>
 
 class SchedulerJob {
-public:
+public: // TODO: Implement yielding correctly.
     std::string szluaCode;
+    // void *threadReference;
     bool bIsLuaCode;
+    // bool bIsYieldingJob;
 };
 
 class Scheduler {
