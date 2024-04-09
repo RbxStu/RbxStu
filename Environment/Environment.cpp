@@ -321,7 +321,7 @@ int Environment::Register(lua_State *L, bool useInitScript) {
             local getIdentity_c = clonefunction(getidentity)
             local setIdentity_c = clonefunction(setidentity)
             local rRequire = clonefunction(require)
-            local hookfunc = clonefunction(hookfunction)
+            local hookfunction_c = clonefunction(hookfunction)
             local newcclosure_c = clonefunction(newcclosure)
 
             getgenv_c().GetObjects = newcclosure_c(function(assetId)
@@ -336,7 +336,7 @@ int Environment::Register(lua_State *L, bool useInitScript) {
                 getgenv_c().hookmetamethod = newcclosure_c(function(t, metamethod, replaceWith)
                     local mt = getrawmetatable(t)
                     if not mt[t] then error("Cannot find metamethod " .. metamethod .. " on metatable.") end
-                    return hookfunction(mt[t], replaceWith)
+                    return hookfunction_c(mt[t], replaceWith)
                 end)
             ]]
             getgenv_c().require = newcclosure_c(function(moduleScript)
