@@ -216,7 +216,7 @@ int setidentity(lua_State *L) {
 
     auto newIdentity = luaL_optnumber(L, -1, 8);
 
-    if (newIdentity >= 9 || newIdentity < 0) {
+    if (newIdentity > 9 || newIdentity < 0) {
         luaG_runerrorL(L, "You may not set your identity below 0 or above 9.");
     }
 
@@ -228,21 +228,74 @@ int setidentity(lua_State *L) {
     return 0;
 }
 
+int getrawmetatable(lua_State *L) {
+    if (!lua_getmetatable(L, 1))
+        lua_pushnil(L);
+
+    return 1;
+}
+
+int setrawmetatable(lua_State *L) {
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_setmetatable(L, 1);
+    return 0;
+}
+
+static int setreadonly(lua_State *L) {
+    luaL_argexpected(L, lua_istable(L, 1), 1, "table");
+    luaL_argexpected(L, lua_isboolean(L, 2), 2, "boolean");
+    lua_setreadonly(L, 1, lua_toboolean(L, 2));
+    return 1;
+}
+
+static int isreadonly(lua_State *L) {
+    luaL_argexpected(L, lua_istable(L, 1), 1, "table");
+    lua_pushboolean(L, lua_getreadonly(L, 1));
+    return 1;
+}
+
+static int make_writeable(lua_State *L) {
+    lua_pushboolean(L, false);
+    return setreadonly(L);
+}
+
+static int make_readonly(lua_State *L) {
+    lua_pushboolean(L, true);
+    return setreadonly(L);
+}
+
+static int getnamecallmethod(lua_State *L) {
+    const char *namecall_method = lua_namecallatom(L, nullptr);
+    if (namecall_method == nullptr) {
+        lua_pushnil(L);
+    }
+    lua_pushstring(L, namecall_method);
+    return 1;
+}
+
+
 int Environment::Register(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
-            {("getreg"),      getreg},
-            {("getgc"),       getgc},
-            {("getgenv"),     getgenv},
-            {("getrenv"),     getrenv},
-            {("checkcaller"), checkcaller},
-            {("setidentity"), setidentity},
-            {("getidentity"), getidentity},
+            {("getreg"),            getreg},
+            {("getgc"),             getgc},
+            {("getgenv"),           getgenv},
+            {("getrenv"),           getrenv},
+            {("checkcaller"),       checkcaller},
+            {("setidentity"),       setidentity},
+            {("getidentity"),       getidentity},
+            {("getrawmetatable"),   getrawmetatable},
+            {("setrawmetatable"),   setrawmetatable},
+            {("setreadonly"),       setreadonly},
+            {("isreadonly"),        isreadonly},
+            {("make_writeable"),    make_writeable},
+            {("make_readonly"),     make_readonly},
+            {("getnamecallmethod"), getnamecallmethod},
             // {("print"),   print},
             // {("warn"),    warn},
             // {("error"),   error},
-            {("HttpGet"),     httpget},
-            {("reinit"),      reinit},
-            {nullptr,         nullptr},
+            {("HttpGet"),           httpget},
+            {("reinit"),            reinit},
+            {nullptr,               nullptr},
     };
 
     lua_pushvalue(L, LUA_GLOBALSINDEX);
@@ -264,12 +317,33 @@ int Environment::Register(lua_State *L, bool useInitScript) {
 
         // Add init script, (someday!!!)
         std::string str = R"(
+            local getgenv_c = clonefunction(getgenv)
+            local getIdentity_c = clonefunction(getidentity)
+            local setIdentity_c = clonefunction(setidentity)
             local rRequire = clonefunction(require)
-            getgenv().require = newcclosure(function(moduleScript)
-                    local old = getidentity()
-                    setidentity(2)
-                    local r = rRequire(moduleScript)
-                    setidentity(old)
+            local hookfunc = clonefunction(hookfunction)
+            local newcclosure_c = clonefunction(newcclosure)
+
+            getgenv_c().GetObjects = newcclosure_c(function(assetId)
+                local oldId = getIdentity_c()
+                setIdentity_c(8)
+                local obj = game.GetService(game, "InsertService").LoadLocalAsset((game.GetService(game, "InsertService")), assetId)
+                setIdentity_c(oldId)
+                return obj
+            end)
+
+            --[[
+                getgenv_c().hookmetamethod = newcclosure_c(function(t, metamethod, replaceWith)
+                    local mt = getrawmetatable(t)
+                    if not mt[t] then error("Cannot find metamethod " .. metamethod .. " on metatable.") end
+                    return hookfunction(mt[t], replaceWith)
+                end)
+            ]]
+            getgenv_c().require = newcclosure_c(function(moduleScript)
+                local old = getIdentity_c()
+                setIdentity_c(2)
+                local r = rRequire(moduleScript)
+                setIdentity_c(old)
             end)
         )";
         execution->lua_loadstring(L, str, utilities->RandomString(32));
