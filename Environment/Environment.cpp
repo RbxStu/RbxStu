@@ -19,6 +19,7 @@
 #include "ClosureLibrary.hpp"
 #include "DebugLibrary.hpp"
 #include "Scheduler.hpp"
+#include "Hook.hpp"
 
 Environment *Environment::singleton = nullptr;
 
@@ -34,6 +35,11 @@ int getreg(lua_State *L) {
 }
 
 int getgenv(lua_State *L) {
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    return 1;
+}
+
+int getrenv(lua_State *L) {
     auto scheduler{Scheduler::GetSingleton()};
     lua_State *gL = scheduler->GetGlobalState();
     lua_pushvalue(gL, LUA_GLOBALSINDEX);
@@ -163,15 +169,43 @@ int httpget(lua_State *L) {
     return 1;
 }
 
+std::mutex reinit__mutx;
+
+int reinit(lua_State *L) {
+
+    printf("\r\nWARNING: Re-Obtaining lua_State* and re-initializing environment! This may take a while, please select your Roblox Studio window and wait till its completed, a message box will show up when it is.");
+    std::thread([]() {
+        reinit__mutx.lock();
+        printf("Running re-init...");
+        auto hook = Hook::get_singleton();
+        auto scheduler = Scheduler::GetSingleton();
+        auto environment = Environment::GetSingleton();
+
+        scheduler->ReInitialize();
+        hook->install_hook();
+        hook->wait_until_initialised();
+        hook->remove_hook();
+
+        environment->Register(scheduler->GetGlobalState(), true);
+
+        MessageBoxA(nullptr, "Obtained new lua_State. Scheduler re-initialized and Environment re-registered. Enjoy!",
+                    "Reinitialization Completed", MB_OK);
+        reinit__mutx.unlock();
+    }).detach();
+    return 0;
+}
+
 int Environment::Register(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
             {("getreg"),  getreg},
             {("getgc"),   getgc},
             {("getgenv"), getgenv},
+            {("getrenv"), getrenv},
             // {("print"),   print},
             // {("warn"),    warn},
             // {("error"),   error},
             {("HttpGet"), httpget},
+            {("reinit"),  reinit},
             {nullptr,     nullptr},
     };
 
@@ -187,7 +221,7 @@ int Environment::Register(lua_State *L, bool useInitScript) {
     std::cout << "Registering Debug Library" << std::endl;
     debugLibrary.RegisterEnvironment(L);
 
-    if (useInitScript) {
+    /*if (useInitScript) {
         std::cout << "Running init script..." << std::endl;
         auto execution{Execution::GetSingleton()};
         auto utilities{Module::Utilities::GetSingleton()};
@@ -196,9 +230,9 @@ int Environment::Register(lua_State *L, bool useInitScript) {
         std::string str = {"print\"init loaded\""};
         execution->lua_loadstring(L, str, utilities->RandomString(32));
         lua_pcall(L, 0, 0, 0);
-        //RBX::Studio::Functions::rTask_spawn(L);
+        // RBX::Studio::Functions::rTask_defer(L);
         std::cout << "Init script executed." << std::endl;
-    }
+    }*/
 
     Sleep(1000);
     return 0;
