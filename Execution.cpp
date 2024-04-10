@@ -29,7 +29,7 @@ std::string Execution::Compile(const std::string &code) {
 }
 
 int Execution::lua_loadstring(lua_State *L, const std::string &code, std::string chunkName) {
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     auto wCode = utilities->ToWideCharacter(code.c_str());
     delete[] wCode;
 
@@ -49,7 +49,7 @@ int Execution::lua_loadstring(lua_State *L, const std::string &code, std::string
 
     auto *pClosure = const_cast<Closure *>(reinterpret_cast<const Closure *>(lua_topointer(L, -1)));
 
-    RBX::Security::Bypasses::SetClosureCapabilities(pClosure);
+    RBX::Security::Bypasses::set_luaclosure_security(pClosure);
 
     return 1;
 }

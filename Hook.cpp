@@ -9,6 +9,7 @@
 #include "Security.hpp"
 #include "lualib.h"
 #include "cstdlib"
+#include "ltable.h"
 
 Hook *Hook::g_hookSingleton = nullptr;
 
@@ -38,8 +39,8 @@ std::mutex mutx{};
 
 void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
     mutx.lock();
-    auto scheduler{Scheduler::GetSingleton()};
-    if (!scheduler->IsInitialized() &&
+    auto scheduler{Scheduler::get_singleton()};
+    if (!scheduler->is_initialized() &&
         rand() % 64 == 0) {  // Randomness for more entropy when getting lua_State*, helped get a valid state faster.
         auto ignoreChecks = false;
         char buf[0xff];
@@ -88,27 +89,31 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
             printf("[[Hook]] Checks ignored: You seem to have a local file opened as a place. This is not fully supported, please use a Place uploaded to RBX.\r\n");
         }
         auto oldTop = lua_gettop(L);
-        auto oldObf = static_cast<RBX::Identity>(RBX::Security::ObfuscateIdentity(ud->identity));
-        RBX::Security::Bypasses::SetLuastateCapabilities(L, RBX::Identity::Eight_Seven);
+        auto oldObf = static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(ud->identity));
+        RBX::Security::Bypasses::set_thread_security(L, RBX::Identity::Eight_Seven);
         auto nL = RBX::Studio::Functions::rlua_newthread(L);
+        lua_ref(L, -1); // Avoid dying.
+        auto rL = RBX::Studio::Functions::rlua_newthread(L);
+        nL->gt = luaH_clone(L, L->gt);
+        rL->gt = luaH_clone(L, L->global->mainthread->gt);
         lua_ref(L, -1); // Avoid dying.
         lua_pop(L, 2);
         // RBX::Security::Bypasses::SetLuastateCapabilities(L, oldObf);
 
         RBX::Studio::Functions::rFromLuaState(L, nL);
-        RBX::Security::Bypasses::SetLuastateCapabilities(L, oldObf);
+        RBX::Security::Bypasses::set_thread_security(L, oldObf);
 
         auto mem = malloc(0x98);    // Pointer replacement.
         nL->userdata = mem;
         memcpy(nL->userdata, L->userdata,
                0x98);    // We detach it from the original lua_State* we originate it from, thus our caps still work.
-        RBX::Security::Bypasses::SetLuastateCapabilities(nL, RBX::Identity::Eight_Seven);
+        RBX::Security::Bypasses::set_thread_security(nL, RBX::Identity::Eight_Seven);
 
         lua_settop(L, oldTop);
         //auto L_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(L->userdata);
         //auto nL_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(nL->userdata);
         //nL_userdata->sharedExtraSpace = L_userdata->sharedExtraSpace;
-        scheduler->InitializeWith(nL);
+        scheduler->initialize_with(nL, rL);
     }
 
     mutx.unlock();
@@ -135,10 +140,10 @@ MH_STATUS Hook::remove_hook() const {
 }
 
 void Hook::wait_until_initialised() {
-    auto scheduler{Scheduler::GetSingleton()};
+    auto scheduler{Scheduler::get_singleton()};
     do {
         Sleep(88);
-    } while (!scheduler->IsInitialized());
+    } while (!scheduler->is_initialized());
 }
 
 void Hook::initialize() const {

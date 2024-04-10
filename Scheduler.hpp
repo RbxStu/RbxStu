@@ -20,24 +20,26 @@ class Scheduler {
     //#endregion Static Fields
 
     lua_State *m_lsInitialisedWith;
+    lua_State *m_lsRoblox;
     std::queue<SchedulerJob> m_sjJobs;
 
-    SchedulerJob GetSchedulerJob();
+    SchedulerJob get_scheduler_job();
 
 public:
     //#region Static Members
-    static Scheduler *GetSingleton();
+    static Scheduler *get_singleton();
     //#endregion Static Members
 
-    void Execute(SchedulerJob *job);
+    void execute_job(SchedulerJob *job);
 
-    void ScheduleJob(const std::string &luaCode);
+    void schedule_job(const std::string &luaCode);
 
-    void InitializeWith(lua_State *L);
+    void initialize_with(lua_State *L, lua_State *rL);
 
-    bool IsInitialized();
+    bool is_initialized();
 
     lua_State *get_global_executor_state();
+    lua_State *get_global_roblox_state();
 
-    void ReInitialize();
+    void re_initialize();
 };

@@ -10,7 +10,7 @@
 
 Module::Utilities *Module::Utilities::sm_pModule = nullptr;
 
-Module::Utilities *Module::Utilities::GetSingleton() {
+Module::Utilities *Module::Utilities::get_singleton() {
     if (Module::Utilities::sm_pModule == nullptr)
         Module::Utilities::sm_pModule = new Module::Utilities();
 

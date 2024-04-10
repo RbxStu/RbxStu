@@ -136,7 +136,7 @@ int main(int argc, char **argv, char **envp) {
     wprintf(oxorany(L"[main] Hook initialized. State grabbed.\r\n"));
 
     wprintf(oxorany(L"[main] Initializing environment.\r\n"));
-    auto scheduler{Scheduler::GetSingleton()};
+    auto scheduler{Scheduler::get_singleton()};
     auto environmentSingleton = Environment::GetSingleton();
     environmentSingleton->Register(scheduler->get_global_executor_state(), true);
     std::string str{};
@@ -149,10 +149,10 @@ int main(int argc, char **argv, char **envp) {
             wprintf(L"Detected reinitialization request! Re-Initializing...\r\n");
             printf("Running re-init...\r\n");
             auto hook = Hook::get_singleton();
-            auto scheduler = Scheduler::GetSingleton();
+            auto scheduler = Scheduler::get_singleton();
             auto environment = Environment::GetSingleton();
 
-            scheduler->ReInitialize();
+            scheduler->re_initialize();
             hook->install_hook();
             hook->wait_until_initialised();
             hook->remove_hook();
@@ -165,7 +165,7 @@ int main(int argc, char **argv, char **envp) {
             continue;
         }
         wprintf(oxorany(L"\r\nPushing to StudioExecutor::Scheduler...\r\n"));
-        scheduler->ScheduleJob(str);
+        scheduler->schedule_job(str);
         Sleep(2000);
     }
 

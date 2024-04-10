@@ -10,7 +10,7 @@
 
 namespace RBX::Studio::Offsets {
     const static std::uintptr_t luau_execute = RebaseAddress(0x142f38180);          // Search for "C Stack Overflow"
-    const static std::uintptr_t luau_load = RebaseAddress(0x142f697a0);             // Search for "Bytecode Version"
+    //const static std::uintptr_t luau_load = RebaseAddress(0x142f697a0);             // Search for "Bytecode Version"
 
     const static std::uintptr_t _luaO_nilobject = RebaseAddress(
                                                           0x14658b830);             // Get to lua_pushvalue and get inside of pseudo2addr, you will find the data xref.
@@ -22,7 +22,8 @@ namespace RBX::Studio::Offsets {
 
     const static std::uintptr_t rluaE_newthread = RebaseAddress(0x142f2bae0);
     // Required for not crashing on errors.
-    const static std::uintptr_t rLuaD_throw = RebaseAddress(0x142f2f720);       // search for "memory allocation error: block too big". You will find luaG_runerrorL, last call is luaD_throw.
+    const static std::uintptr_t rLuaD_throw = RebaseAddress(
+                                                      0x142f2f720);       // search for "memory allocation error: block too big". You will find luaG_runerrorL, last call is luaD_throw.
     const static std::uintptr_t rlua_newthread = RebaseAddress(0x142f29790);
     const static std::uintptr_t rbxAllocate = RebaseAddress(0x141293090);       // Exported function.
     const static std::uintptr_t rTask_defer = RebaseAddress(0x141c99560);
@@ -35,9 +36,9 @@ namespace RBX::Studio::Offsets {
 struct lua_State;
 
 namespace FunctionTypes {
-    using luau_load = int32_t (__fastcall *)(struct lua_State *L, const char *chunkName, const char *bytecode,
-                                             int32_t bytecodeSize,
-                                             int32_t env);
+    //using luau_load = int32_t (__fastcall *)(struct lua_State *L, const char *chunkName, const char *bytecode,
+    //                                         int32_t bytecodeSize,
+    //                                         int32_t env);
     using luau_execute = void (__fastcall *)(struct lua_State *L);
     using pseudo2addr = void *(__fastcall *)(lua_State *L, int32_t lua_index);
     using lua_newthread = lua_State *(__fastcall *)(lua_State *L);
@@ -52,7 +53,7 @@ namespace FunctionTypes {
 };
 
 namespace RBX::Studio::Functions {
-    const static auto luau_load = reinterpret_cast<FunctionTypes::luau_load>(RBX::Studio::Offsets::luau_load);
+    // const static auto luau_load = reinterpret_cast<FunctionTypes::luau_load>(RBX::Studio::Offsets::luau_load);
     const static auto luau_execute = reinterpret_cast<FunctionTypes::luau_execute>(RBX::Studio::Offsets::luau_execute);
     const static auto rTask_defer = reinterpret_cast<FunctionTypes::rTask_defer>(RBX::Studio::Offsets::rTask_defer);
     const static auto rluaE_newthread = reinterpret_cast<FunctionTypes::rluaE_newthread>(RBX::Studio::Offsets::rluaE_newthread);

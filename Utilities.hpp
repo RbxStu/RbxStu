@@ -6,7 +6,7 @@
 #include <sstream>
 #include <oxorany.hpp>
 
-#define oxorany_pchar(wstr) (Module::Utilities::GetSingleton()->ToChar(oxorany(wstr)))
+#define oxorany_pchar(wstr) (Module::Utilities::get_singleton()->ToChar(oxorany(wstr)))
 
 namespace Module {
     class Utilities {
@@ -14,7 +14,7 @@ namespace Module {
 
         static Utilities *sm_pModule;
     public:
-        static Utilities *GetSingleton();
+        static Utilities *get_singleton();
 
         std::string RandomString(int length);
 

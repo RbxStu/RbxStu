@@ -13,7 +13,7 @@
 
 
 int iscclosure(lua_State *L) {
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     if (lua_gettop(L) < 1 || lua_type(L, 1) != LUA_TFUNCTION) {
         luaL_error(L,   // Cursed tower of pain!
                    utilities->ToString(
@@ -26,7 +26,7 @@ int iscclosure(lua_State *L) {
 }
 
 int islclosure(lua_State *L) {
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     if (lua_gettop(L) < 1 || lua_type(L, 1) != LUA_TFUNCTION) {
         luaL_error(L,   // Cursed tower of pain!
                    utilities->ToString(
@@ -38,7 +38,7 @@ int islclosure(lua_State *L) {
 }
 
 int newcclosure(lua_State *L) {
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     auto closures{Module::Closures::GetSingleton()};
     if (lua_gettop(L) < 1 || lua_type(L, 1) != LUA_TFUNCTION) {
         luaL_error(L,   // Cursed tower of pain!
@@ -58,7 +58,7 @@ int newcclosure(lua_State *L) {
 }
 
 int newlclosure(lua_State *L) {
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     auto closures{Module::Closures::GetSingleton()};
     if (lua_gettop(L) < 1 || lua_type(L, 1) != LUA_TFUNCTION) {
         luaL_error(L,   // Cursed tower of pain!
@@ -81,7 +81,7 @@ int hookfunction(lua_State *L) {
     // Being honest, I'm lazy to write all the statement for error handling I did before lol.
     luaL_checktype(L, 1, LUA_TFUNCTION);
     luaL_checktype(L, 2, LUA_TFUNCTION);
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     auto closures{Module::Closures::GetSingleton()};
     auto *toHook = lua_toclosure(L, 1);
     auto *hookWith = lua_toclosure(L, 2);
@@ -149,7 +149,7 @@ int hookfunction(lua_State *L) {
 
 int loadstring(lua_State *L) {
     auto execution{Execution::GetSingleton()};
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
 
     luaL_checktype(L, 1, LUA_TSTRING);
 
@@ -177,22 +177,46 @@ int clonefunction(lua_State *L) {
     return 1;
 }
 
+int isourclosure(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+
+    auto *cl = reinterpret_cast<Closure *>(const_cast<void *>(lua_topointer(L, 1)));
+
+    if (cl->isC) {
+        if (NewCClosureHandler == cl->c.f) {
+            lua_pushboolean(L, true);
+        } else {
+            // Cheap solution for isourclosure without doing warcrimes..
+            lua_pushboolean(L, cl->c.debugname == nullptr);
+        }
+    } else {
+        if (cl->l.p->linedefined == -1) {
+            lua_pushboolean(L, true);
+        }
+    }
+    return 1;
+
+}
+
 void ClosureLibrary::RegisterEnvironment(lua_State *L) {
     static const luaL_Reg reg[] = {
-            {("iscclosure"),     iscclosure},
-            {("islclosure"),     islclosure},
-            {("newcclosure"),    newcclosure},
-            {("newlclosure"),    newlclosure},
+            {("isourclosure"),      isourclosure},
+            {("isexecutorclosure"), isourclosure},
 
-            {("hookfunction"),   hookfunction},
-            {("hookfunc"),       hookfunction},
-            {("replaceclosure"), hookfunction},
-            {("clonefunction"), clonefunction},
+            {("iscclosure"),        iscclosure},
+            {("islclosure"),        islclosure},
+            {("newcclosure"),       newcclosure},
+            {("newlclosure"),       newlclosure},
 
-            {("loadstring"),     loadstring},
-            {("compile"),        loadstring},
+            {("hookfunction"),      hookfunction},
+            {("hookfunc"),          hookfunction},
+            {("replaceclosure"),    hookfunction},
+            {("clonefunction"),     clonefunction},
 
-            {nullptr,            nullptr},
+            {("loadstring"),        loadstring},
+            {("compile"),           loadstring},
+
+            {nullptr,               nullptr},
     };
 
     lua_pushvalue(L, LUA_GLOBALSINDEX);

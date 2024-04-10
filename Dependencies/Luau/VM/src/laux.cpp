@@ -263,7 +263,7 @@ void luaL_register(lua_State *L, const char *libname, const luaL_Reg *l) {
         lua_remove(L, -2); // remove _LOADED table
     }
     for (; l->name; l++) {
-        lua_pushcfunction(L, l->func, l->name);
+        lua_pushcfunction(L, l->func, nullptr); // Identifying our closures.
         lua_setfield(L, -2, l->name);
     }
 }

@@ -36,7 +36,7 @@ int getreg(lua_State *L) {
 }
 
 int getgenv(lua_State *L) {
-    auto scheduler{Scheduler::GetSingleton()};
+    auto scheduler{Scheduler::get_singleton()};
     lua_State *gL = scheduler->get_global_executor_state();
     lua_pushvalue(gL, LUA_GLOBALSINDEX);
     lua_xmove(gL, L, 1);
@@ -44,15 +44,16 @@ int getgenv(lua_State *L) {
 }
 
 int getrenv(lua_State *L) {
-    auto scheduler{Scheduler::GetSingleton()};
-    lua_State *rL = lua_mainthread(scheduler->get_global_executor_state());
-    lua_pushvalue(rL, LUA_GLOBALSINDEX);
-    lua_xmove(rL, L, 1);
+    auto scheduler{Scheduler::get_singleton()};
+
+    lua_State *gL = scheduler->get_global_roblox_state();
+    lua_pushvalue(gL, LUA_GLOBALSINDEX);
+    lua_xmove(gL, L, 1);
     return 1;
 }
 
 int print(lua_State *L) {
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     auto argc = lua_gettop(L);
     std::wstringstream strStream;
     strStream << oxorany(L"[INFO] ");
@@ -66,7 +67,7 @@ int print(lua_State *L) {
 }
 
 int warn(lua_State *L) {
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     auto argc = lua_gettop(L);
     std::wstringstream strStream;
     strStream << oxorany(L"[WARN] ");
@@ -80,7 +81,7 @@ int warn(lua_State *L) {
 }
 
 int error(lua_State *L) {
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     auto argc = lua_gettop(L);
 
     std::wstringstream strStream;
@@ -182,10 +183,10 @@ int reinit(lua_State *L) {
         reinit__mutx.lock();
         printf("Running re-init...");
         auto hook = Hook::get_singleton();
-        auto scheduler = Scheduler::GetSingleton();
+        auto scheduler = Scheduler::get_singleton();
         auto environment = Environment::GetSingleton();
 
-        scheduler->ReInitialize();
+        scheduler->re_initialize();
         hook->install_hook();
         hook->wait_until_initialised();
         hook->remove_hook();
@@ -235,7 +236,7 @@ int setidentity(lua_State *L) {
     printf("Capabilities: 0x%p\r\n", extraSpace->capabilities);
 
     extraSpace->identity = newIdentity;                                                             // Apparently, identity only gets set now if you call the userthread callback, so we have to invoke it.
-    extraSpace->capabilities = 0x3FFFF00 | RBX::Security::ObfuscateIdentity(newIdentity);
+    extraSpace->capabilities = 0x3FFFF00 | RBX::Security::to_obfuscated_identity(newIdentity);
 
     printf("New State ExtraSpace:\r\n");
     printf("  Identity  : 0x%p\r\n", extraSpace->identity);
@@ -330,7 +331,7 @@ int Environment::Register(lua_State *L, bool useInitScript) {
     if (useInitScript) {
         std::cout << "Running init script..." << std::endl;
         auto execution{Execution::GetSingleton()};
-        auto utilities{Module::Utilities::GetSingleton()};
+        auto utilities{Module::Utilities::get_singleton()};
 
         // Add init script, (someday!!!)
         std::string str = R"(

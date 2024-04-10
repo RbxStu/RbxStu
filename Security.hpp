@@ -14,8 +14,8 @@ namespace RBX::Lua {
             char field_18[0x8];
             void *__intrusive_set_AllThreads;
         };
-
-        [[maybe_unused]] char _0[8];
+        uint8_t __CUSTOM__THREADMARK;
+        [[maybe_unused]] char _1[7];
         [[maybe_unused]] char _8[8];
         [[maybe_unused]] char _10[8];
         struct RBX::Lua::ExtraSpace::Shared *sharedExtraSpace;
@@ -52,18 +52,18 @@ namespace RBX {
     };
 
     namespace Security {
-        int64_t DeobfuscateIdentity(int64_t identity);
+        int64_t deobfuscate_identity(int64_t identity);
 
-        int64_t ObfuscateIdentity(int64_t identity);
+        int64_t to_obfuscated_identity(int64_t identity);
 
         // Marks a lua_State as ours for the purposes of Check Caller, etc.
         void MarkThread(lua_State *L);
 
         namespace Bypasses {
-            void SetLuastateCapabilities(lua_State *L, RBX::Identity identity);
+            void set_thread_security(lua_State *L, RBX::Identity identity);
 
             // Sets capabilities on Lua closures, returns false if the operation fails (i.e: The closure is a C closure).
-            bool SetClosureCapabilities(Closure *cl);
+            bool set_luaclosure_security(Closure *cl);
         }
     }
 

@@ -6,17 +6,18 @@
 #include <lstate.h>
 #include "Security.hpp"
 
-void RBX::Security::MarkThread(lua_State *L) {
+void RBX::Security::MarkThread(lua_State *L) {  // Unsafe operation. Do NOT do.
     if (L->userdata == nullptr) {
         // Call lua capabilities to alloc and set,
-        RBX::Security::Bypasses::SetLuastateCapabilities(L, RBX::Identity::Eight_Seven);
+        RBX::Security::Bypasses::set_thread_security(L, RBX::Identity::Eight_Seven);
     }
     auto *plStateUd = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
     // Doing this messes Roblox up. do NOT do this.
     // plStateUd->globalActorState = 0xff; // Mark as our thread.
+    plStateUd->__CUSTOM__THREADMARK = 0xff;
 }
 
-int64_t RBX::Security::DeobfuscateIdentity(int64_t identity) {
+int64_t RBX::Security::deobfuscate_identity(int64_t identity) {
     // Some identities are merged, which means that the output doesn't matter truly. We just need to support the highest one.
     switch (identity) {
         case RBX::Identity::One_Four:
@@ -35,7 +36,7 @@ int64_t RBX::Security::DeobfuscateIdentity(int64_t identity) {
     return 0;
 }
 
-int64_t RBX::Security::ObfuscateIdentity(int64_t identity) {
+int64_t RBX::Security::to_obfuscated_identity(int64_t identity) {
     switch (identity) {
         case 1:
         case 4:
@@ -56,7 +57,7 @@ int64_t RBX::Security::ObfuscateIdentity(int64_t identity) {
     return 0;
 }
 
-void RBX::Security::Bypasses::SetLuastateCapabilities(lua_State *L, RBX::Identity identity) {
+void RBX::Security::Bypasses::set_thread_security(lua_State *L, RBX::Identity identity) {
     if (L->userdata == nullptr) {
         // Assume unallocated, what else would be 0 goddam.
         L->userdata = RBX::Studio::Functions::rbxAllocate(
@@ -66,7 +67,7 @@ void RBX::Security::Bypasses::SetLuastateCapabilities(lua_State *L, RBX::Identit
     // is NOT meant to represent the actual memory.
     auto *plStateUd = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
-    plStateUd->identity = RBX::Security::DeobfuscateIdentity(identity);
+    plStateUd->identity = RBX::Security::deobfuscate_identity(identity);
     plStateUd->capabilities = 0x3FFFF3F; // Magical constant | Identity 8.
     plStateUd->taskStatus = 0;
 }
@@ -77,7 +78,7 @@ void set_proto(Proto *proto, uintptr_t *proto_identity) {
         set_proto(proto->p[i], proto_identity);
 }
 
-bool RBX::Security::Bypasses::SetClosureCapabilities(Closure *cl) {
+bool RBX::Security::Bypasses::set_luaclosure_security(Closure *cl) {
     if (cl->isC) return false;
     auto protos = cl->l.p;
     auto *mem = reinterpret_cast<std::uintptr_t *>(RBX::Studio::Functions::rbxAllocate(

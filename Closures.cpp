@@ -35,7 +35,8 @@ const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
         Closure *newcl = luaF_newCclosure(L, cl->nupvalues, cl->env);
         newcl->c.f = (lua_CFunction) cl->c.f;
         newcl->c.cont = (lua_Continuation) cl->c.cont;
-        newcl->c.debugname = (const char *) cl->c.debugname;
+        if (cl->c.debugname != nullptr)
+            newcl->c.debugname = (const char *) cl->c.debugname;
 
         for (int i = 0; i < cl->nupvalues; i++)
                 setobj2n (L, &newcl->c.upvals[i], &cl->c.upvals[i]);
@@ -59,7 +60,7 @@ const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
 void Module::Closures::ToLClosure(lua_State *L, int idx) const {
     // "function inspired by Joe's code, thx Joe for being so cool"
     //  - Dottik
-    auto utilities{Module::Utilities::GetSingleton()};
+    auto utilities{Module::Utilities::get_singleton()};
     auto execution{Execution::GetSingleton()};
     lua_newtable(L);    // t
     lua_newtable(L);    // Meta
@@ -99,9 +100,8 @@ int NewCClosureHandler(lua_State *L) {
     // then get the Value and thats the closure we gotta invoke.
     Closure *realClosure = closures->FindWrappedClosure(clvalue(L->ci->func));
 
-    if (realClosure == nullptr) {
+    if (realClosure == nullptr)
         return 0;   // Failed to map, shit.
-    }
 
     L->top->value.p = realClosure;
     L->top->tt = LUA_TFUNCTION;
@@ -110,7 +110,7 @@ int NewCClosureHandler(lua_State *L) {
     lua_insert(L, 1);
 
 
-    if (const auto callResult = lua_pcall(L, argc, 0, 0); callResult && callResult != LUA_YIELD &&
+    if (const auto callResult = lua_pcall(L, argc, LUA_MULTRET, 0); callResult == LUA_YIELD &&
                                                           (0 == std::strcmp(luaL_optstring(L, -1, oxorany_pchar(L"")),
                                                                             oxorany_pchar(
                                                                                     L"attempt to yield across metamethod/C-call boundary"))))
