@@ -36,15 +36,18 @@ int getreg(lua_State *L) {
 }
 
 int getgenv(lua_State *L) {
-    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    auto scheduler{Scheduler::GetSingleton()};
+    lua_State *gL = scheduler->get_global_executor_state();
+    lua_pushvalue(gL, LUA_GLOBALSINDEX);
+    lua_xmove(gL, L, 1);
     return 1;
 }
 
 int getrenv(lua_State *L) {
     auto scheduler{Scheduler::GetSingleton()};
-    lua_State *gL = scheduler->GetGlobalState();
-    lua_pushvalue(gL, LUA_GLOBALSINDEX);
-    lua_xmove(gL, L, 1);
+    lua_State *rL = lua_mainthread(scheduler->get_global_executor_state());
+    lua_pushvalue(rL, LUA_GLOBALSINDEX);
+    lua_xmove(rL, L, 1);
     return 1;
 }
 
@@ -187,7 +190,7 @@ int reinit(lua_State *L) {
         hook->wait_until_initialised();
         hook->remove_hook();
 
-        environment->Register(scheduler->GetGlobalState(), true);
+        environment->Register(scheduler->get_global_executor_state(), true);
 
         MessageBoxA(nullptr, "Obtained new lua_State. Scheduler re-initialized and Environment re-registered. Enjoy!",
                     "Reinitialization Completed", MB_OK);
@@ -207,6 +210,10 @@ int checkcaller(lua_State *L) {
 int getidentity(lua_State *L) {
     auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
+    printf("Current State ExtraSpace:\r\n");
+
+    printf("  Identity  : 0x%p\r\n", extraSpace->identity);
+    printf("Capabilities: 0x%p\r\n", extraSpace->capabilities);
     lua_pushnumber(L, extraSpace->identity);
     return 1;
 }
@@ -223,8 +230,17 @@ int setidentity(lua_State *L) {
     // The identity seems to be consulted on the L->mainthread. Due to this, we may need to keep two lua states running. One originating from an elevated one, and one originated from a non elevated one.
     // With this we can bypass identity, while still being able to use functions like require, which are literally a REQUIREment. Heh.
 
+    printf("Old State ExtraSpace:\r\n");
+    printf("  Identity  : 0x%p\r\n", extraSpace->identity);
+    printf("Capabilities: 0x%p\r\n", extraSpace->capabilities);
+
     extraSpace->identity = newIdentity;                                                             // Apparently, identity only gets set now if you call the userthread callback, so we have to invoke it.
     extraSpace->capabilities = 0x3FFFF00 | RBX::Security::ObfuscateIdentity(newIdentity);
+
+    printf("New State ExtraSpace:\r\n");
+    printf("  Identity  : 0x%p\r\n", extraSpace->identity);
+    printf("Capabilities: 0x%p\r\n", extraSpace->capabilities);
+
 
     return 0;
 }
