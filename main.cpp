@@ -138,7 +138,7 @@ int main(int argc, char **argv, char **envp) {
     wprintf(oxorany(L"[main] Initializing environment.\r\n"));
     auto scheduler{Scheduler::GetSingleton()};
     auto environmentSingleton = Environment::GetSingleton();
-    environmentSingleton->Register(scheduler->GetGlobalState(), true);
+    environmentSingleton->Register(scheduler->get_global_executor_state(), true);
     std::string str{};
 
     while (true) {
@@ -157,7 +157,7 @@ int main(int argc, char **argv, char **envp) {
             hook->wait_until_initialised();
             hook->remove_hook();
 
-            environment->Register(scheduler->GetGlobalState(), true);
+            environment->Register(scheduler->get_global_executor_state(), true);
 
             MessageBoxA(nullptr,
                         "Obtained new lua_State. Scheduler re-initialized and Environment re-registered. Enjoy!",

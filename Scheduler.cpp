@@ -77,11 +77,13 @@ void Scheduler::Execute(SchedulerJob *job) {
     RBX::Studio::Functions::rTask_defer(nLs);   // Not using this causes issues relating to permissions.
 }
 
-lua_State *Scheduler::GetGlobalState() {
+lua_State *Scheduler::get_global_executor_state() {
     return this->m_lsInitialisedWith;
 }
 
+
 void Scheduler::InitializeWith(lua_State *L) {
+    this->m_lsInitialisedWith = L;
     std::thread([this]() {
         while (true) {
             auto job = this->GetSchedulerJob();
@@ -91,13 +93,12 @@ void Scheduler::InitializeWith(lua_State *L) {
             Sleep(77);
         }
     }).detach();
-    this->m_lsInitialisedWith = L;
 }
 
 bool Scheduler::IsInitialized() {
-    return m_lsInitialisedWith != nullptr;
+    return this->m_lsInitialisedWith != nullptr;
 }
 
 void Scheduler::ReInitialize() {
-    m_lsInitialisedWith = nullptr;
+    this->m_lsInitialisedWith = nullptr;
 }
