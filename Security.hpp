@@ -3,6 +3,8 @@
 //
 #pragma once
 
+#include "oxorany/oxorany.h"
+
 typedef int64_t (*Validator)(int64_t testAgainst, struct lua_State *testWith);
 
 namespace RBX::Lua {
@@ -37,22 +39,23 @@ namespace RBX::Lua {
         [[maybe_unused]] char _91[1];
         [[maybe_unused]] char _92[1];
         uint8_t taskStatus;
+        uint8_t executor_thread_mark;
     };
 }
 
 namespace RBX {
 
     enum Identity {
-        One_Four = 3,
-        Two = 0,
-        Five = 1,
-        Three_Six = 0xB,
-        Eight_Seven = 0x3F,
-        Nine = 0xC
+        One_Four = (3),
+        Two = (0),
+        Five = (1),
+        Three_Six = (0xB),
+        Eight_Seven = (0x3F),
+        Nine = (0xC)
     };
 
     namespace Security {
-        int64_t deobfuscate_identity(int64_t identity);
+        int64_t deobfuscate_identity(RBX::Identity identity);
 
         int64_t to_obfuscated_identity(int64_t identity);
 

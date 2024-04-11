@@ -10,23 +10,22 @@
 #include "lualib.h"
 #include "cstdlib"
 #include "ltable.h"
+#include "Utilities.hpp"
 
 Hook *Hook::g_hookSingleton = nullptr;
 
 void Hook::freeblock__detour(lua_State *L, int32_t sizeClass, void *block) {
-    if ((std::uintptr_t) block > 0x00007FF000000000) {
-        printf("\r\n\r\n--- CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n");
-        printf("---     SUSPICIOUS BLOCK ADDRESS CAUGHT    ---\r\n");
-        printf("--- CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n");
+    if ((std::uintptr_t) block > oxorany(0x00007FF000000000)) {
+        wprintf(oxorany(L"\r\n\r\n--- CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n"));
+        wprintf(oxorany(L"---     SUSPICIOUS BLOCK ADDRESS CAUGHT    ---\r\n"));
+        wprintf(oxorany(L"--- CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n"));
+        wprintf(oxorany(L"lua state   : 0x%p\r\n"), L);
+        wprintf(oxorany(L"sizeClass   : %ull\r\n"), sizeClass);
+        wprintf(oxorany(L"block       : 0x%p\r\n"), block);
+        wprintf(oxorany(L"*(block - 8): 0x%p\r\n"), *((uintptr_t *) ((std::uintptr_t) block - 8)));
+        wprintf(oxorany(L"\r\n\r\n--- END CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n"));
 
-        printf("lua state   : 0x%p\r\n", L);
-        printf("sizeClass   : %ull\r\n", sizeClass);
-        printf("block       : 0x%p\r\n", block);
-        printf("*(block - 8): 0x%p\r\n", *((uintptr_t *) ((std::uintptr_t) block - 8)));
-
-        printf("\r\n\r\n--- END CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n");
-
-        printf("\r\nIN ORDER TO AVOID A CRASH. THIS CALL HAS BEEN OMITTED DUE TO BLOCK APPEARING TO BE A STACK ADDRESS! POSSIBLE MEMORY LEAK MAY INSUE!\r\n");
+        wprintf(oxorany(L"\r\nIN ORDER TO AVOID A CRASH. THIS CALL HAS BEEN OMITTED DUE TO BLOCK APPEARING TO BE A STACK ADDRESS! POSSIBLE MEMORY LEAK MAY INSUE!\r\n"));
 
         return;
     }
@@ -41,23 +40,24 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
     mutx.lock();
     auto scheduler{Scheduler::get_singleton()};
     if (!scheduler->is_initialized() &&
-        rand() % 64 == 0) {  // Randomness for more entropy when getting lua_State*, helped get a valid state faster.
+        rand() % oxorany(64) ==
+        0) {  // Randomness for more entropy when getting lua_State*, helped get a valid state faster.
         auto ignoreChecks = false;
-        char buf[0xff];
+        char buf[(0xff)];
         if (GetWindowTextA(GetForegroundWindow(), buf, sizeof(buf))) {
-            if (strstr(buf, ":\\") != nullptr && strstr(buf, "- Roblox Studio") != nullptr &&
-                strstr(buf, ".rbxl") != nullptr) {
-                printf("WARNING: You seem to have a local file open. This tool does not support them correctly, and the grabbed state may not be correct!\r\n");
+            if (strstr(buf, (oxorany_pchar(L":\\"))) != nullptr &&
+                strstr(buf, oxorany_pchar(L"- Roblox Studio")) != nullptr &&
+                strstr(buf, (oxorany_pchar(L".rbxl"))) != nullptr) {
+                wprintf(oxorany(L"WARNING: You seem to have a local file open. This tool does not support them correctly, and the grabbed state may not be correct!\r\n"));
                 ignoreChecks = true;
             }
         }
         auto ud = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
-        printf("State ExtraSpace:\r\n");
-        printf("Identity: 0x%p\r\n", ud->identity);
-        printf("Capabilities: 0x%p\r\n", ud->capabilities);
-        printf("Please select your Roblox Studio window if you are using a local file!\r\n");
-        printf("Attempting to initialize scheduler... \n");
-        // printf("Evaluating lua_State*'s possibility of being useful...\r\n");
+        wprintf(oxorany(L"State ExtraSpace:\r\n"));
+        wprintf(oxorany(L"Identity: 0x%p\r\n"), ud->identity);
+        wprintf(oxorany(L"Capabilities: 0x%p\r\n"), ud->capabilities);
+        wprintf(oxorany(L"Please select your Roblox Studio window if you are using a local file!\r\n"));
+        wprintf(oxorany(L"Attempting to initialize scheduler... \n"));
 
         if (L->singlestep) {
             printf("Not eligible at all. Singlestep detected.\r\n");
@@ -67,26 +67,25 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         }
         if (!ignoreChecks) {
             auto originalTop = lua_gettop(L);
-
-            lua_getglobal(L, "game");
+            lua_getglobal(L, oxorany_pchar(L"game"));
 
             if (lua_isnil(L, -1)) {
-                printf("No DataModel found, lua_State* ignored.\r\n");
+                wprintf(oxorany(L"No DataModel found, lua_State* ignored.\r\n"));
                 mutx.unlock();
                 return Hook::get_singleton()->get_pseudo_original()(L, idx);
             }
 
-            lua_getfield(L, -1, "PlaceId");
-            auto placeId = luaL_optnumber(L, -1, 0);
+            lua_getfield(L, oxorany(-1), oxorany_pchar(L"PlaceId"));
+            auto placeId = luaL_optnumber(L, oxorany(-1), oxorany(0));
             lua_settop(L, originalTop); // Reset stack.
 
-            if (placeId == 0) {
+            if (placeId == oxorany(0)) {
                 lua_settop(L, originalTop);
                 mutx.unlock();
                 return Hook::get_singleton()->get_pseudo_original()(L, idx);
             }
         } else {
-            printf("[[Hook]] Checks ignored: You seem to have a local file opened as a place. This is not fully supported, please use a Place uploaded to RBX.\r\n");
+            wprintf(oxorany(L"[[Hook]] Checks ignored: You seem to have a local file opened as a place. This is not fully supported, please use a Place uploaded to RBX.\r\n"));
         }
         auto oldTop = lua_gettop(L);
         auto oldObf = static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(ud->identity));
@@ -103,11 +102,13 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         RBX::Studio::Functions::rFromLuaState(L, nL);
         RBX::Security::Bypasses::set_thread_security(L, oldObf);
 
-        auto mem = malloc(0x98);    // Pointer replacement.
+        if (nL->userdata != nullptr) free(nL->userdata);
+        auto mem = malloc(oxorany(sizeof(RBX::Lua::ExtraSpace)));    // Pointer replacement.
         nL->userdata = mem;
         memcpy(nL->userdata, L->userdata,
-               0x98);    // We detach it from the original lua_State* we originate it from, thus our caps still work.
+               oxorany(0x98));    // We detach it from the original lua_State* we originate it from, thus our caps still work.
         RBX::Security::Bypasses::set_thread_security(nL, RBX::Identity::Eight_Seven);
+        RBX::Security::MarkThread(nL);
 
         lua_settop(L, oldTop);
         //auto L_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(L->userdata);
@@ -142,7 +143,7 @@ MH_STATUS Hook::remove_hook() const {
 void Hook::wait_until_initialised() {
     auto scheduler{Scheduler::get_singleton()};
     do {
-        Sleep(88);
+        Sleep(oxorany(88));
     } while (!scheduler->is_initialized());
 }
 

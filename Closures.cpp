@@ -65,7 +65,7 @@ void Module::Closures::ToLClosure(lua_State *L, int idx) const {
     lua_newtable(L);    // t
     lua_newtable(L);    // Meta
 
-    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_pushvalue(L, oxorany(LUA_GLOBALSINDEX));
     lua_setfield(L, -2, oxorany_pchar(L"__index"));
     lua_setreadonly(L, -1, true);
     lua_setmetatable(L, -2);

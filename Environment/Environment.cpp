@@ -52,7 +52,7 @@ int getrenv(lua_State *L) {
     return 1;
 }
 
-int print(lua_State *L) {
+int consoleprint(lua_State *L) {
     auto utilities{Module::Utilities::get_singleton()};
     auto argc = lua_gettop(L);
     std::wstringstream strStream;
@@ -66,7 +66,7 @@ int print(lua_State *L) {
     return 0;
 }
 
-int warn(lua_State *L) {
+int consolewarn(lua_State *L) {
     auto utilities{Module::Utilities::get_singleton()};
     auto argc = lua_gettop(L);
     std::wstringstream strStream;
@@ -80,7 +80,7 @@ int warn(lua_State *L) {
     return 0;
 }
 
-int error(lua_State *L) {
+int consoleerror(lua_State *L) {
     auto utilities{Module::Utilities::get_singleton()};
     auto argc = lua_gettop(L);
 
@@ -92,7 +92,7 @@ int error(lua_State *L) {
     }
     std::wcerr << termcolor::red << strStream.str() << termcolor::reset << std::endl;
 
-    luaL_error(L, utilities->ToString(strStream.str()).c_str());
+    luaG_runerror(L, utilities->ToString(strStream.str()).c_str());
     return 0;
 }
 
@@ -174,47 +174,21 @@ int httpget(lua_State *L) {
     return 1;
 }
 
-std::mutex reinit__mutx;
-
-int reinit(lua_State *L) {
-
-    printf("\r\nWARNING: Re-Obtaining lua_State* and re-initializing environment! This may take a while, please select your Roblox Studio window and wait till its completed, a message box will show up when it is.");
-    std::thread([]() {
-        reinit__mutx.lock();
-        printf("Running re-init...");
-        auto hook = Hook::get_singleton();
-        auto scheduler = Scheduler::get_singleton();
-        auto environment = Environment::GetSingleton();
-
-        scheduler->re_initialize();
-        hook->install_hook();
-        hook->wait_until_initialised();
-        hook->remove_hook();
-
-        environment->Register(scheduler->get_global_executor_state(), true);
-
-        MessageBoxA(nullptr, "Obtained new lua_State. Scheduler re-initialized and Environment re-registered. Enjoy!",
-                    "Reinitialization Completed", MB_OK);
-        reinit__mutx.unlock();
-    }).detach();
-    return 0;
-}
-
 int checkcaller(lua_State *L) {
     auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
-    lua_pushboolean(L, extraSpace->identity >= 4 && extraSpace->identity <= 9 /*|| extraSpace->globalActorState ==
-                                                    0xff*/);   // Check identity and the globalActorState (which we messed with to mark our thread)
+    // We must include a better checkcaller, at least for the future, this gayass check is killing me so bad.
+    lua_pushboolean(L, extraSpace != nullptr && ((extraSpace->identity >= 4 && extraSpace->identity <=
+                                                                               9)));   // Check identity and the globalActorState (which we messed with to mark our thread)
     return 1;
 }
 
 int getidentity(lua_State *L) {
     auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
-    printf("Current State ExtraSpace:\r\n");
-
-    printf("  Identity  : 0x%p\r\n", extraSpace->identity);
-    printf("Capabilities: 0x%p\r\n", extraSpace->capabilities);
+    //wprintf(oxorany(L"Current State ExtraSpace:\r\n"));
+    //wprintf(oxorany(L"  Identity  : 0x%p\r\n"), extraSpace->identity);
+    //wprintf(oxorany(L"Capabilities: 0x%p\r\n"), extraSpace->capabilities);
     lua_pushnumber(L, extraSpace->identity);
     return 1;
 }
@@ -222,25 +196,25 @@ int getidentity(lua_State *L) {
 int setidentity(lua_State *L) {
     auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
-    auto newIdentity = luaL_optnumber(L, -1, 8);
+    auto newIdentity = luaL_optnumber(L, -1, oxorany(8));
 
-    if (newIdentity > 9 || newIdentity < 0) {
-        luaG_runerrorL(L, "You may not set your identity below 0 or above 9.");
+    if (newIdentity > oxorany(9) || newIdentity < oxorany(0)) {
+        luaG_runerrorL(L, oxorany_pchar("You may not set your identity below 0 or above 9."));
     }
 
     // The identity seems to be consulted on the L->mainthread. Due to this, we may need to keep two lua states running. One originating from an elevated one, and one originated from a non elevated one.
     // With this we can bypass identity, while still being able to use functions like require, which are literally a REQUIREment. Heh.
 
-    printf("Old State ExtraSpace:\r\n");
-    printf("  Identity  : 0x%p\r\n", extraSpace->identity);
-    printf("Capabilities: 0x%p\r\n", extraSpace->capabilities);
+    //wprintf(oxorany(L"Old State ExtraSpace:\r\n"));
+    //wprintf(oxorany(L"  Identity  : 0x%p\r\n"), extraSpace->identity);
+    //wprintf(oxorany(L"Capabilities: 0x%p\r\n"), extraSpace->capabilities);
 
-    extraSpace->identity = newIdentity;                                                             // Apparently, identity only gets set now if you call the userthread callback, so we have to invoke it.
-    extraSpace->capabilities = 0x3FFFF00 | RBX::Security::to_obfuscated_identity(newIdentity);
+    extraSpace->identity = newIdentity;     // Identity bypass.
+    extraSpace->capabilities = oxorany(0x3FFFF00) | RBX::Security::to_obfuscated_identity(newIdentity);
 
-    printf("New State ExtraSpace:\r\n");
-    printf("  Identity  : 0x%p\r\n", extraSpace->identity);
-    printf("Capabilities: 0x%p\r\n", extraSpace->capabilities);
+    //wprintf(oxorany(L"New State ExtraSpace:\r\n"));
+    //wprintf(oxorany(L"  Identity  : 0x%p\r\n"), extraSpace->identity);
+    //wprintf(oxorany(L"Capabilities: 0x%p\r\n"), extraSpace->capabilities);
 
 
     return 0;
@@ -260,14 +234,14 @@ int setrawmetatable(lua_State *L) {
 }
 
 static int setreadonly(lua_State *L) {
-    luaL_argexpected(L, lua_istable(L, 1), 1, "table");
-    luaL_argexpected(L, lua_isboolean(L, 2), 2, "boolean");
+    luaL_argexpected(L, lua_istable(L, 1), 1, oxorany_pchar(L"table"));
+    luaL_argexpected(L, lua_isboolean(L, 2), 2, oxorany_pchar(L"boolean"));
     lua_setreadonly(L, 1, lua_toboolean(L, 2));
     return 1;
 }
 
 static int isreadonly(lua_State *L) {
-    luaL_argexpected(L, lua_istable(L, 1), 1, "table");
+    luaL_argexpected(L, lua_istable(L, 1), 1, oxorany_pchar(L"table"));
     lua_pushboolean(L, lua_getreadonly(L, 1));
     return 1;
 }
@@ -294,47 +268,51 @@ static int getnamecallmethod(lua_State *L) {
 
 int Environment::Register(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
-            {("getreg"),            getreg},
-            {("getgc"),             getgc},
-            {("getgenv"),           getgenv},
-            {("getrenv"),           getrenv},
-            {("checkcaller"),       checkcaller},
-            {("setidentity"),       setidentity},
-            {("getidentity"),       getidentity},
-            {("getrawmetatable"),   getrawmetatable},
-            {("setrawmetatable"),   setrawmetatable},
-            {("setreadonly"),       setreadonly},
-            {("isreadonly"),        isreadonly},
-            {("make_writeable"),    make_writeable},
-            {("make_readonly"),     make_readonly},
-            {("getnamecallmethod"), getnamecallmethod},
+            {oxorany_pchar(L"getreg"),            getreg},
+            {oxorany_pchar(L"getgc"),             getgc},
+            {oxorany_pchar(L"getgenv"),           getgenv},
+            {oxorany_pchar(L"getrenv"),           getrenv},
+            {oxorany_pchar(L"checkcaller"),       checkcaller},
+            {oxorany_pchar(L"setidentity"),       setidentity},
+            {oxorany_pchar(L"getidentity"),       getidentity},
+            {oxorany_pchar(L"getrawmetatable"),   getrawmetatable},
+            {oxorany_pchar(L"setrawmetatable"),   setrawmetatable},
+            {oxorany_pchar(L"setreadonly"),       setreadonly},
+            {oxorany_pchar(L"isreadonly"),        isreadonly},
+            {oxorany_pchar(L"make_writeable"),    make_writeable},
+            {oxorany_pchar(L"make_readonly"),     make_readonly},
+            {oxorany_pchar(L"getnamecallmethod"), getnamecallmethod},
             // {("print"),   print},
             // {("warn"),    warn},
             // {("error"),   error},
-            {("HttpGet"),           httpget},
-            {("reinit"),            reinit},
-            {nullptr,               nullptr},
+            {oxorany_pchar("consoleprint"),       consoleprint},
+            {oxorany_pchar("consolewarn"),        consolewarn},
+            {oxorany_pchar("consoleerror"),       consoleerror},
+
+            {oxorany_pchar(L"HttpGet"),           httpget},
+            // {oxorany_pchar(L"reinit"),            reinit},
+            {nullptr,                             nullptr},
     };
 
-    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_pushvalue(L, oxorany(LUA_GLOBALSINDEX));
     luaL_register(L, nullptr, reg);
     lua_pop(L, 1);
 
     auto closuresLibrary = ClosureLibrary{};
-    std::cout << "Registering Closure Library" << std::endl;
+    std::cout << oxorany_pchar(L"Registering Closure Library") << std::endl;
     closuresLibrary.RegisterEnvironment(L);
 
     auto debugLibrary = DebugLibrary{};
-    std::cout << "Registering Debug Library" << std::endl;
+    std::cout << oxorany_pchar(L"Registering Debug Library") << std::endl;
     debugLibrary.RegisterEnvironment(L);
 
     if (useInitScript) {
-        std::cout << "Running init script..." << std::endl;
+        std::cout << oxorany_pchar(L"Running init script...") << std::endl;
         auto execution{Execution::GetSingleton()};
         auto utilities{Module::Utilities::get_singleton()};
 
         // Add init script, (someday!!!)
-        std::string str = R"(
+        std::string str = oxorany_pchar(LR"(
             local getgenv_c = clonefunction(getgenv)
             local getIdentity_c = clonefunction(getidentity)
             local setIdentity_c = clonefunction(setidentity)
@@ -363,11 +341,11 @@ int Environment::Register(lua_State *L, bool useInitScript) {
                 local r = rRequire(moduleScript)
                 setIdentity_c(old)
             end)
-        )";
+        )");
         execution->lua_loadstring(L, str, utilities->RandomString(32));
         lua_pcall(L, 0, 0, 0);
         // RBX::Studio::Functions::rTask_defer(L);
-        std::cout << "Init script executed." << std::endl;
+        std::cout << oxorany_pchar(L"Init script executed.") << std::endl;
     }
 
     return 0;

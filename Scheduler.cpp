@@ -42,7 +42,7 @@ void Scheduler::execute_job(SchedulerJob *job) {
     if (job->szluaCode.empty()) return;
     auto utilities{Module::Utilities::get_singleton()};
     auto nSzLuaCode = std::string(
-            R"(getgenv()["string"]=getrawmetatable("").__index;script=Instance.new("LocalScript");)") +
+            oxorany_pchar(R"(getgenv()["string"]=getrawmetatable("").__index;script=Instance.new("LocalScript");)")) +
                       job->szluaCode;
 
     wprintf(oxorany(L"[Scheduler::execute_job] Compiling bytecode...\r\n"));
@@ -56,7 +56,8 @@ void Scheduler::execute_job(SchedulerJob *job) {
     wprintf(oxorany(L"[Scheduler::execute_job] Pushing closure...\r\n"));
     auto nLs = luaE_newthread(this->m_lsInitialisedWith);
     nLs->global->cb = this->m_lsInitialisedWith->global->cb;
-    auto mem = malloc(0x98);    // Userdata size on rbx, check callback userthread.
+    if (nLs->userdata != nullptr)free(nLs->userdata);
+    auto mem = malloc(sizeof(RBX::Lua::ExtraSpace));    // Userdata size on rbx, check callback userthread.
     nLs->userdata = mem;
     memcpy(nLs->userdata, this->m_lsInitialisedWith->userdata, 0x98);
     RBX::Security::Bypasses::set_thread_security(nLs, RBX::Identity::Eight_Seven);
