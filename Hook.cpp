@@ -53,9 +53,9 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
             }
         }
         auto ud = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
-        wprintf(oxorany(L"State ExtraSpace:\r\n"));
-        wprintf(oxorany(L"Identity: 0x%p\r\n"), ud->identity);
-        wprintf(oxorany(L"Capabilities: 0x%p\r\n"), ud->capabilities);
+        //wprintf(oxorany(L"State ExtraSpace:\r\n"));
+        //wprintf(oxorany(L"Identity: 0x%p\r\n"), ud->identity);
+        //wprintf(oxorany(L"Capabilities: 0x%p\r\n"), ud->capabilities);
         wprintf(oxorany(L"Please select your Roblox Studio window if you are using a local file!\r\n"));
         wprintf(oxorany(L"Attempting to initialize scheduler... \n"));
 

@@ -16,7 +16,6 @@ void RBX::Security::MarkThread(lua_State *L) {  // Unsafe operation. Do NOT do.
     // Doing this messes Roblox up. do NOT do this.
     // plStateUd->globalActorState = 0xff; // Mark as our thread.
     plStateUd->executor_thread_mark = oxorany(0xff);
-    printf("Marked thread: %d", plStateUd->executor_thread_mark == 0xff);
 }
 
 int64_t RBX::Security::deobfuscate_identity(RBX::Identity identity) {
