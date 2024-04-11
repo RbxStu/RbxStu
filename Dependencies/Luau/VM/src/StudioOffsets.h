@@ -9,28 +9,28 @@
 #define RebaseAddress(x) x - 0x140000000 + reinterpret_cast<uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe"))
 
 namespace RBX::Studio::Offsets {
-    const static std::uintptr_t luau_execute = RebaseAddress(0x142f38180);          // Search for "C Stack Overflow"
+    const static std::uintptr_t luau_execute = RebaseAddress(0x142f80bf0);          // Search for "C Stack Overflow"
     //const static std::uintptr_t luau_load = RebaseAddress(0x142f697a0);             // Search for "Bytecode Version"
 
     const static std::uintptr_t _luaO_nilobject = RebaseAddress(
-                                                          0x14658b830);             // Get to lua_pushvalue and get inside of pseudo2addr, you will find the data xref.
+                                                          0x146603268);             // Get to lua_pushvalue and get inside of pseudo2addr, you will find the data xref.
     const static std::uintptr_t _luaH_dummynode = RebaseAddress(
-                                                          0x14658b6d8);             // Find " ,"metatable": ", and go to the top of the second xref, a ldebug function. It will contain two references to luaH_dummynode.
+                                                          0x146603128);             // Find " ,"metatable": ", and go to the top of the second xref, a ldebug function. It will contain two references to luaH_dummynode.
 
     // The way we get our lua state is the classic, hooking.
-    const static std::uintptr_t pseudo2addr = RebaseAddress(0x142f2b820);
+    const static std::uintptr_t pseudo2addr = RebaseAddress(0x142f74290);
 
-    const static std::uintptr_t rluaE_newthread = RebaseAddress(0x142f2bae0);
+    const static std::uintptr_t rluaE_newthread = RebaseAddress(0x142f75780);
     // Required for not crashing on errors.
     const static std::uintptr_t rLuaD_throw = RebaseAddress(
-                                                      0x142f2f720);       // search for "memory allocation error: block too big". You will find luaG_runerrorL, last call is luaD_throw.
-    const static std::uintptr_t rlua_newthread = RebaseAddress(0x142f29790);
-    const static std::uintptr_t rbxAllocate = RebaseAddress(0x141293090);       // Exported function.
-    const static std::uintptr_t rTask_defer = RebaseAddress(0x141c99560);
+                                                      0x142f78190);       // search for "memory allocation error: block too big". You will find luaG_runerrorL, last call is luaD_throw.
+    const static std::uintptr_t rlua_newthread = RebaseAddress(0x142f72200);
+    const static std::uintptr_t rbxAllocate = RebaseAddress(0x141296eb0);       // Exported function.
+    const static std::uintptr_t rTask_defer = RebaseAddress(0x141cb4d10);
 
-    const static std::uintptr_t rFreeBlock = RebaseAddress(0x142f46310);
+    const static std::uintptr_t rFreeBlock = RebaseAddress(0x142f8ea70);
     const static std::uintptr_t rFromLuaState = RebaseAddress(
-                                                        0x141af1ab0);     // Appears to copy ones' L->userdata into another for new states. Search for "Failed to create Lua State", on the userthread user callback.
+                                                        0x141b05490);     // Appears to copy ones' L->userdata into another for new states. Search for "Failed to create Lua State", on the userthread user callback.
 }
 
 struct lua_State;
