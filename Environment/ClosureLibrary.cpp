@@ -193,26 +193,21 @@ int hookfunction(lua_State *L) {
 
     // C->NC
     if (!closures->IsCClosureHandler(toHook) && toHook->isC && closures->IsCClosureHandler(hookWith)) {
-        printf("C->NL\r\n");
         if (closures->FindWrappedClosure(hookWith)->isC) {
             // We must get original.
             auto nCl = closures->FindWrappedClosure(hookWith);
             L->top->tt = LUA_TFUNCTION;
             L->top->value.p = nCl;
             L->top++;
-            printf("ORIGINAL IS C\r\n");
         } else {
             auto nCl = closures->FindWrappedClosure(hookWith);
             L->top->tt = LUA_TFUNCTION;
             L->top->value.p = nCl;
             L->top++;
-            printf("ORIGINAL IS L, WRAPPING\r\n");
         }
-        printf("N HOOK WITH\r\n");
         auto *original = lua_toclosure(L, -1);   // C Closure at stack top, variable shadowing on top!
 
         // C->C
-        printf("CLONE ORIGINAL C\r\n");
         auto cl = closures->CloneClosure(L, toHook); // Clone original Closure.
 
         toHook->c.f = [](lua_State *L) -> int { return 0; }; /* we don't wanna break while we set upvalues */
@@ -221,13 +216,7 @@ int hookfunction(lua_State *L) {
 
         toHook->nupvalues = hookWith->nupvalues;
         toHook->c.f = NewCClosureHandler;    // Newcclosure handler.
-        printf("CLMAP\r\n");
         closures->AddWrappedClosure(toHook, original);
-
-        //L->top->tt = LUA_TFUNCTION;
-        //L->top->value.p = const_cast<void *>(reinterpret_cast<const void *>(cl));
-        //L->top++;
-        printf("RET\r\n");
         return 1;
     }
 
