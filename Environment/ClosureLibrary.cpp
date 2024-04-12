@@ -81,7 +81,6 @@ int hookfunction(lua_State *L) {
     // Being honest, I'm lazy to write all the statement for error handling I did before lol.
     luaL_checktype(L, 1, LUA_TFUNCTION);
     luaL_checktype(L, 2, LUA_TFUNCTION);
-    auto utilities{Module::Utilities::get_singleton()};
     auto closures{Module::Closures::GetSingleton()};
     auto *toHook = lua_toclosure(L, 1);
     auto *hookWith = lua_toclosure(L, 2);
