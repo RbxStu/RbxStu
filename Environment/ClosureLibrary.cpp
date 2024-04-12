@@ -87,6 +87,167 @@ int hookfunction(lua_State *L) {
     auto toHookUpvalues = toHook->nupvalues;
     auto hookWithUpvalues = hookWith->nupvalues;
 
+    // L->L
+    if (!toHook->isC && !hookWith->isC) {
+        lua_clonefunction(L, 1); // Clone original LClosure
+
+        toHook->env = hookWith->env; // If we crash, we will leak env on an xpcall, terrible idea.
+        toHook->stacksize = hookWith->stacksize;
+        toHook->preload = hookWith->preload;
+
+        for (int i = 0; i < hookWithUpvalues; i++)
+            // Set urfs
+                setobj2n (L, &toHook->l.uprefs[i], &hookWith->l.uprefs[i]);
+
+        toHook->nupvalues = hookWith->nupvalues;
+        toHook->l.p = hookWith->l.p;
+
+        return 1;
+    }
+
+    // NC->NC
+    if (closures->IsCClosureHandler(toHook) && closures->IsCClosureHandler(hookWith)) {
+        // In this case we want to duplicate our original newcclosure handler for cloning, after which we manipulate the toHook with our hookWith->c.f.
+        auto originalWrapped = closures->FindWrappedClosure(toHook);
+        L->top->tt = LUA_TFUNCTION;
+        L->top->value.p = originalWrapped;
+        L->top++;
+        closures->ToCClosure(L, -1);
+
+        auto *nWrapped = lua_toclosure(L, -1);  // Clone the NewCClosure.
+
+        closures->AddWrappedClosure(toHook, closures->FindWrappedClosure(hookWith));
+
+        L->top->tt = LUA_TFUNCTION;
+        L->top->value.p = nWrapped;
+        L->top++;
+        return 1;
+    }
+
+    // L->NC
+    if (!toHook->isC && closures->IsCClosureHandler(hookWith)) {
+        // We want to grab the backing L closure of the newcclosure, this way we can just hook L->L easily.
+        // We just need to get our hookWith to be the original L closure.
+
+        if (closures->FindWrappedClosure(hookWith)->isC) {
+            // We must convert the closure it wraps into an L closure.
+            auto nCl = closures->FindWrappedClosure(hookWith);
+            L->top->tt = LUA_TFUNCTION;
+            L->top->value.p = nCl;
+            L->top++;
+            closures->ToLClosure(L, -1);
+        } else {
+            auto nCl = closures->FindWrappedClosure(hookWith);
+            L->top->tt = LUA_TFUNCTION;
+            L->top->value.p = nCl;
+            L->top++;
+        }
+        auto *hookWith = lua_toclosure(L, -1);   // L Closure at stack top, variable shadowing on top!
+
+        // L->L
+        lua_clonefunction(L, 1); // Clone original LClosure
+
+        toHook->env = hookWith->env;
+        toHook->stacksize = hookWith->stacksize;
+        toHook->preload = hookWith->preload;
+
+        for (int i = 0; i < hookWithUpvalues; i++)
+            // Set urfs
+                setobj2n (L, &toHook->l.uprefs[i], &hookWith->l.uprefs[i]);
+
+        toHook->nupvalues = hookWith->nupvalues;
+        toHook->l.p = hookWith->l.p;
+
+        return 1;
+    }
+
+    // L->C
+    if (!toHook->isC && !closures->IsCClosureHandler(hookWith) && hookWith->isC) {
+        closures->ToLClosure(L, 2);
+        auto *hookWith = lua_toclosure(L, -1);   // L Closure at stack top, variable shadowing on top!
+
+        // L->L
+        lua_clonefunction(L, 1); // Clone original LClosure
+
+        toHook->env = hookWith->env;
+        toHook->stacksize = hookWith->stacksize;
+        toHook->preload = hookWith->preload;
+
+        for (int i = 0; i < hookWithUpvalues; i++)
+            // Set urfs
+                setobj2n (L, &toHook->l.uprefs[i], &hookWith->l.uprefs[i]);
+
+        toHook->nupvalues = hookWith->nupvalues;
+        toHook->l.p = hookWith->l.p;
+
+        return 1;
+    }
+
+    // C->L
+    if (!closures->IsCClosureHandler(toHook) && toHook->isC && !hookWith->isC) {
+        closures->AddWrappedClosure(toHook, hookWith);  // Link toHook with hookWith
+        closures->CloneClosure(L, toHook); // Clone original Closure.
+        toHook->c.f = NewCClosureHandler;    // Set handler
+        return 1;
+    }
+
+    // C->NC
+    if (!closures->IsCClosureHandler(toHook) && toHook->isC && closures->IsCClosureHandler(hookWith)) {
+        printf("C->NL\r\n");
+        if (closures->FindWrappedClosure(hookWith)->isC) {
+            // We must get original.
+            auto nCl = closures->FindWrappedClosure(hookWith);
+            L->top->tt = LUA_TFUNCTION;
+            L->top->value.p = nCl;
+            L->top++;
+            printf("ORIGINAL IS C\r\n");
+        } else {
+            auto nCl = closures->FindWrappedClosure(hookWith);
+            L->top->tt = LUA_TFUNCTION;
+            L->top->value.p = nCl;
+            L->top++;
+            printf("ORIGINAL IS L, WRAPPING\r\n");
+        }
+        printf("N HOOK WITH\r\n");
+        auto *original = lua_toclosure(L, -1);   // C Closure at stack top, variable shadowing on top!
+
+        // C->C
+        printf("CLONE ORIGINAL C\r\n");
+        auto cl = closures->CloneClosure(L, toHook); // Clone original Closure.
+
+        toHook->c.f = [](lua_State *L) -> int { return 0; }; /* we don't wanna break while we set upvalues */
+        for (int i = 0; i < hookWith->nupvalues; i++)
+                setobj2n (L, &toHook->c.upvals[i], &hookWith->c.upvals[i]);
+
+        toHook->nupvalues = hookWith->nupvalues;
+        toHook->c.f = NewCClosureHandler;    // Newcclosure handler.
+        printf("CLMAP\r\n");
+        closures->AddWrappedClosure(toHook, original);
+
+        //L->top->tt = LUA_TFUNCTION;
+        //L->top->value.p = const_cast<void *>(reinterpret_cast<const void *>(cl));
+        //L->top++;
+        printf("RET\r\n");
+        return 1;
+    }
+
+    // NC->C/L
+    if (closures->IsCClosureHandler(toHook) && !closures->IsCClosureHandler(hookWith)) {
+        /*
+         *  1 - toHook
+         *  2 - hookWith
+         *  3 - newcclosureehandler
+         * */
+        auto originalToHook = closures->FindWrappedClosure(toHook);
+        if (!hookWith->isC)
+            lua_ref(L, 2);
+        closures->AddWrappedClosure(toHook, hookWith);
+
+        lua_pushcclosure(L, NewCClosureHandler, nullptr, 0);
+        closures->AddWrappedClosure(lua_toclosure(L, -1), originalToHook);
+        return 1;
+    }
+
     if (toHook->isC) {
         // FIXME: this shit won't hook, i have tried so many things for this C<->X hooking, and finally given up.
         lua_CFunction hook_f = nullptr;

@@ -32,6 +32,13 @@ namespace Module {
         void AddWrappedClosure(Closure *wrapper, Closure *original);
 
         /*
+         *  Validates if a C closure is a C closure handler.
+         *  @param closure The closure to validate.
+         */
+
+        bool IsCClosureHandler(Closure *closure);
+
+        /*
          *  Finds a wrapped closure given its wrapper
          *  @param wrapper The closure that wraps the closure.
          *  @return The closure the given closure wraps.

@@ -11,6 +11,11 @@
 #include "lgc.h"
 #include "lfunc.h"
 
+/*
+ *  TODO: Rewrite implementation of the Closure map. The closure map, due to its nature, when hooking NC->NC, we will be leaking memory.
+ *  as the backing L closure of the newcclosure is now leaked into memory, and not being able to being freed (lua_ref(L, X))
+ * */
+
 Module::Closures *Module::Closures::singleton = nullptr;
 
 Module::Closures *Module::Closures::GetSingleton() {
@@ -18,6 +23,10 @@ Module::Closures *Module::Closures::GetSingleton() {
         Closures::singleton = new Closures();
 
     return Closures::singleton;
+}
+
+bool Module::Closures::IsCClosureHandler(Closure *cl) {
+    return cl->isC && cl->c.f == NewCClosureHandler;
 }
 
 
@@ -54,8 +63,9 @@ const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
         setclvalue(L, L->top, cl);
         L->top++;
         lua_clonefunction(L, -1);
-        auto l = reinterpret_cast<Closure*>(const_cast<void*>(lua_topointer(L,-1)))->l;
-        set_proto(l.p, reinterpret_cast<std::uintptr_t*>(l.p->userdata != nullptr ? l.p->userdata : malloc(sizeof(std::uintptr_t))));  // Copy proto.
+        auto l = reinterpret_cast<Closure *>(const_cast<void *>(lua_topointer(L, -1)))->l;
+        set_proto(l.p, reinterpret_cast<std::uintptr_t *>(l.p->userdata != nullptr ? l.p->userdata : malloc(
+                sizeof(std::uintptr_t))));  // Copy proto.
         return reinterpret_cast<const Closure *>(lua_topointer(L, -1));
     }
 }
@@ -78,7 +88,7 @@ void Module::Closures::ToLClosure(lua_State *L, int idx) const {
     lua_setreadonly(L, -1, true);
     lua_setmetatable(L, -2);
 
-    lua_pushvalue(L, idx);                                          // Push a copy of the val at idx into the top
+    lua_pushvalue(L, idx < 0 ? idx - 1 : idx);                                          // Push a copy of the val at idx into the top
     lua_setfield(L, -2, oxorany_pchar(L"abcdefg"));    // Set abcdefg to that of idx
     auto code = oxorany_pchar(L"return abcdefg(...)");
     if (auto bytecode = execution->Compile(code);
@@ -95,9 +105,11 @@ void Module::Closures::ToLClosure(lua_State *L, int idx) const {
  * @param idx Index on lua stack
  * */
 void Module::Closures::ToCClosure(lua_State *L, int idx) {
+    auto nIdx = idx < 0 ? idx - 1
+                        : idx; // We use relative indexes on this function. If we do not do this, we will not correctly register the wrapped closure.
     lua_ref(L, idx);   // Avoid collection.
     lua_pushcclosure(L, NewCClosureHandler, nullptr, 0);
-    this->AddWrappedClosure(lua_toclosure(L, -1), lua_toclosure(L, idx));
+    this->AddWrappedClosure(lua_toclosure(L, -1), lua_toclosure(L, nIdx));
 }
 
 int NewCClosureHandler(lua_State *L) {
@@ -119,7 +131,8 @@ int NewCClosureHandler(lua_State *L) {
 
 
     if (const auto callResult = lua_pcall(L, argc, LUA_MULTRET, 0); callResult == LUA_YIELD &&
-                                                          (0 == std::strcmp(luaL_optstring(L, -1, oxorany_pchar(L"")),
+                                                                    (0 == std::strcmp(
+                                                                            luaL_optstring(L, -1, oxorany_pchar(L"")),
                                                                             oxorany_pchar(
                                                                                     L"attempt to yield across metamethod/C-call boundary"))))
         return lua_yield(L, 0);

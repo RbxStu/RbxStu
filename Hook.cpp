@@ -44,7 +44,7 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         auto ignoreChecks = false;
         char buf[(0xff)];
 
-        if (tries > 10) {
+        if (tries > 30) {
             wprintf(oxorany(L"You seem to be having issues trying to obtain a lua_State*, make sure to publish your game, at least privately, else this tool will NOT work!\r\n"));
             wprintf(oxorany(L"Validation checks on the lua_State* will be ignored this time. But please remember to publish privately if you wanna use this tool without being an unstable mess!\r\n"));
             ignoreChecks = true;
