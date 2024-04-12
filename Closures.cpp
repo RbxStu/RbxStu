@@ -30,6 +30,12 @@ Closure *Module::Closures::FindWrappedClosure(Closure *wrapper) {
     return this->closureMap.find(wrapper)->second;
 }
 
+static void set_proto(Proto *proto, uintptr_t *proto_identity) {
+    proto->userdata = static_cast<void *>(proto_identity);
+    for (auto i = oxorany(0); i < proto->sizep; i++)
+            set_proto(proto->p[i], proto_identity);
+}
+
 const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
     if (cl->isC) {
         Closure *newcl = luaF_newCclosure(L, cl->nupvalues, cl->env);
@@ -48,6 +54,8 @@ const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
         setclvalue(L, L->top, cl);
         L->top++;
         lua_clonefunction(L, -1);
+        auto l = reinterpret_cast<Closure*>(const_cast<void*>(lua_topointer(L,-1)))->l;
+        set_proto(l.p, reinterpret_cast<std::uintptr_t*>(l.p->userdata != nullptr ? l.p->userdata : malloc(sizeof(std::uintptr_t))));  // Copy proto.
         return reinterpret_cast<const Closure *>(lua_topointer(L, -1));
     }
 }
