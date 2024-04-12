@@ -35,15 +35,21 @@ void Hook::freeblock__detour(lua_State *L, int32_t sizeClass, void *block) {
 }
 
 std::mutex mutx{};
+long long tries = 0;
 
 void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
     mutx.lock();
     auto scheduler{Scheduler::get_singleton()};
-    if (!scheduler->is_initialized() &&
-        rand() % oxorany(64) ==
-        0) {  // Randomness for more entropy when getting lua_State*, helped get a valid state faster.
+    if (!scheduler->is_initialized()) {  // Randomness for more entropy when getting lua_State*, helped get a valid state faster.
         auto ignoreChecks = false;
         char buf[(0xff)];
+
+        if (tries > 10) {
+            wprintf(oxorany(L"You seem to be having issues trying to obtain a lua_State*, make sure to publish your game, at least privately, else this tool will NOT work!\r\n"));
+            wprintf(oxorany(L"Validation checks on the lua_State* will be ignored this time. But please remember to publish privately if you wanna use this tool without being an unstable mess!\r\n"));
+            ignoreChecks = true;
+        }
+
         if (GetWindowTextA(GetForegroundWindow(), buf, sizeof(buf))) {
             if (strstr(buf, (oxorany_pchar(L":\\"))) != nullptr &&
                 strstr(buf, oxorany_pchar(L"- Roblox Studio")) != nullptr &&
@@ -61,8 +67,8 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
 
         if (L->singlestep) {
             printf("Not eligible at all. Singlestep detected.\r\n");
+            tries++;
             mutx.unlock();
-
             return Hook::get_singleton()->get_pseudo_original()(L, idx);
         }
         if (!ignoreChecks) {
@@ -71,16 +77,36 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
 
             if (lua_isnil(L, -1)) {
                 wprintf(oxorany(L"No DataModel found, lua_State* ignored.\r\n"));
+                tries++;
                 mutx.unlock();
                 return Hook::get_singleton()->get_pseudo_original()(L, idx);
             }
 
             lua_getfield(L, oxorany(-1), oxorany_pchar(L"PlaceId"));
-            auto placeId = luaL_optnumber(L, oxorany(-1), oxorany(0));
+            auto placeId = luaL_optinteger(L, oxorany(-1), oxorany(-1));
+            lua_settop(L, originalTop); // Reset stack.
+            lua_getglobal(L, oxorany_pchar(L"game"));
+            lua_getfield(L, oxorany(-1), oxorany_pchar(L"GameId"));
+            auto gameId = luaL_optinteger(L, oxorany(-1), oxorany(-1));
             lua_settop(L, originalTop); // Reset stack.
 
-            if (placeId == oxorany(0)) {
+
+            if (placeId == oxorany(0) && gameId == oxorany(0)) {
+                wprintf(oxorany(L"PlaceId and GameId are 0, lua_State* ignored.\r\n"));
                 lua_settop(L, originalTop);
+                tries++;
+                mutx.unlock();
+                return Hook::get_singleton()->get_pseudo_original()(L, idx);
+            } else if (placeId == oxorany(0)) {
+                wprintf(oxorany(L"PlaceId is 0, lua_State* ignored.\r\n"));
+                lua_settop(L, originalTop);
+                tries++;
+                mutx.unlock();
+                return Hook::get_singleton()->get_pseudo_original()(L, idx);
+            } else if (gameId == oxorany(0)) {
+                wprintf(oxorany(L"GameId is 0, lua_State* ignored.\r\n"));
+                lua_settop(L, originalTop);
+                tries++;
                 mutx.unlock();
                 return Hook::get_singleton()->get_pseudo_original()(L, idx);
             }
@@ -91,12 +117,12 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         auto oldObf = static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(ud->identity));
         RBX::Security::Bypasses::set_thread_security(L, RBX::Identity::Eight_Seven);
         auto nL = RBX::Studio::Functions::rlua_newthread(L);
-        lua_ref(L, -1); // Avoid dying.
+        lua_ref(L, oxorany(-1)); // Avoid dying.
         auto rL = RBX::Studio::Functions::rlua_newthread(L);
         nL->gt = luaH_clone(L, L->gt);
         rL->gt = luaH_clone(L, L->global->mainthread->gt);
-        lua_ref(L, -1); // Avoid dying.
-        lua_pop(L, 2);
+        lua_ref(L, oxorany(-1)); // Avoid dying.
+        lua_pop(L, oxorany(2));
         // RBX::Security::Bypasses::SetLuastateCapabilities(L, oldObf);
 
         RBX::Studio::Functions::rFromLuaState(L, nL);
