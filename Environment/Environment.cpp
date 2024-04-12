@@ -196,7 +196,7 @@ int getidentity(lua_State *L) {
 int setidentity(lua_State *L) {
     auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
-    auto newIdentity = luaL_optnumber(L, -1, oxorany(8));
+    auto newIdentity = luaL_optinteger(L, -1, oxorany(8));
 
     if (newIdentity > oxorany(9) || newIdentity < oxorany(0)) {
         luaG_runerrorL(L, oxorany_pchar("You may not set your identity below 0 or above 9."));
@@ -216,7 +216,6 @@ int setidentity(lua_State *L) {
     //wprintf(oxorany(L"  Identity  : 0x%p\r\n"), extraSpace->identity);
     //wprintf(oxorany(L"Capabilities: 0x%p\r\n"), extraSpace->capabilities);
 
-
     return 0;
 }
 
@@ -233,30 +232,30 @@ int setrawmetatable(lua_State *L) {
     return 0;
 }
 
-static int setreadonly(lua_State *L) {
+int setreadonly(lua_State *L) {
     luaL_argexpected(L, lua_istable(L, 1), 1, oxorany_pchar(L"table"));
     luaL_argexpected(L, lua_isboolean(L, 2), 2, oxorany_pchar(L"boolean"));
     lua_setreadonly(L, 1, lua_toboolean(L, 2));
     return 1;
 }
 
-static int isreadonly(lua_State *L) {
+int isreadonly(lua_State *L) {
     luaL_argexpected(L, lua_istable(L, 1), 1, oxorany_pchar(L"table"));
     lua_pushboolean(L, lua_getreadonly(L, 1));
     return 1;
 }
 
-static int make_writeable(lua_State *L) {
+int make_writeable(lua_State *L) {
     lua_pushboolean(L, false);
     return setreadonly(L);
 }
 
-static int make_readonly(lua_State *L) {
+int make_readonly(lua_State *L) {
     lua_pushboolean(L, true);
     return setreadonly(L);
 }
 
-static int getnamecallmethod(lua_State *L) {
+int getnamecallmethod(lua_State *L) {
     const char *namecall_method = lua_namecallatom(L, nullptr);
     if (namecall_method == nullptr) {
         lua_pushnil(L);
@@ -265,6 +264,11 @@ static int getnamecallmethod(lua_State *L) {
     return 1;
 }
 
+int identifyexecutor(lua_State *L) {
+    lua_pushstring(L, oxorany_pchar("RbxStu"));
+    lua_pushstring(L, oxorany_pchar("1.0.0"));
+    return 2;
+}
 
 int Environment::Register(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
@@ -282,15 +286,19 @@ int Environment::Register(lua_State *L, bool useInitScript) {
             {oxorany_pchar(L"make_writeable"),    make_writeable},
             {oxorany_pchar(L"make_readonly"),     make_readonly},
             {oxorany_pchar(L"getnamecallmethod"), getnamecallmethod},
-            // {("print"),   print},
-            // {("warn"),    warn},
-            // {("error"),   error},
+
+            {oxorany_pchar(L"identifyexecutor"),  identifyexecutor},
+            {oxorany_pchar(L"getexecutorname"),   identifyexecutor},
+
+
             {oxorany_pchar("consoleprint"),       consoleprint},
             {oxorany_pchar("consolewarn"),        consolewarn},
             {oxorany_pchar("consoleerror"),       consoleerror},
 
             {oxorany_pchar(L"HttpGet"),           httpget},
+
             // {oxorany_pchar(L"reinit"),            reinit},
+
             {nullptr,                             nullptr},
     };
 
@@ -353,8 +361,22 @@ int Environment::Register(lua_State *L, bool useInitScript) {
 
                 return Instances
             end)
+
+            getgenv_c().getinstances = newcclosure_c(function()
+                local Instances = {}
+
+                for _,Object in getreg() do
+                    if typeof(Object) == "Instance" then
+                      table.insert(Instances, Object)
+                    end
+                end
+
+                return Instances
+            end)
         )");
-        execution->lua_loadstring(L, str, utilities->RandomString(32));
+        execution->lua_loadstring(L, str, utilities->RandomString(32),
+                                  static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(
+                                          static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
         lua_pcall(L, 0, 0, 0);
         // RBX::Studio::Functions::rTask_defer(L);
         std::cout << oxorany_pchar(L"Init script executed.") << std::endl;
