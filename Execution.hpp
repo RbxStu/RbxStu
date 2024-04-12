@@ -10,6 +10,7 @@
 // C++
 #include <cstdint>
 #include <string>
+#include "Security.hpp"
 
 // This class dictates the way execution is performed. It contains many utilities and required functions to Execute luau bytecode.
 class [[maybe_unused]] Execution {
@@ -20,7 +21,7 @@ public:
 
     int RegisterEnvironment(lua_State *L, bool useInitScript);
 
-    int lua_loadstring(lua_State *L, const std::string &code, std::string chunkName);
+    int lua_loadstring(lua_State *L, const std::string &code, std::string chunkName, RBX::Identity identity);
 
     std::string Compile(const std::string &code);
 };

@@ -161,8 +161,10 @@ int loadstring(lua_State *L) {
         return 1;
     }
 
+
     return execution->lua_loadstring(L, scriptText,
-                                     chunkName);    // Return the Execution implementation of the custom luau_loadstring.
+                                     chunkName,
+                                     RBX::Identity::Eight_Seven);    // Return the Execution implementation of the custom luau_loadstring.
 }
 
 int clonefunction(lua_State *L) {
@@ -172,7 +174,7 @@ int clonefunction(lua_State *L) {
     auto newClosure = closures->CloneClosure(L, reinterpret_cast<Closure *>(const_cast <void *>(lua_topointer(L, -1))));
 
     if (newClosure == nullptr)
-        luaL_error(L, "Failed to clone closure!");
+        luaL_error(L, oxorany_pchar(L"Failed to clone closure!"));
 
     return 1;
 }
@@ -200,26 +202,27 @@ int isourclosure(lua_State *L) {
 
 void ClosureLibrary::RegisterEnvironment(lua_State *L) {
     static const luaL_Reg reg[] = {
-            {("isourclosure"),      isourclosure},
-            {("isexecutorclosure"), isourclosure},
+            {oxorany_pchar(L"isourclosure"),      isourclosure},
+            {oxorany_pchar(L"isexecutorclosure"), isourclosure},
 
-            {("iscclosure"),        iscclosure},
-            {("islclosure"),        islclosure},
-            {("newcclosure"),       newcclosure},
-            {("newlclosure"),       newlclosure},
+            {oxorany_pchar(L"iscclosure"),        iscclosure},
+            {oxorany_pchar(L"islclosure"),        islclosure},
+            {oxorany_pchar(L"newcclosure"),       newcclosure},
+            {oxorany_pchar(L"newlclosure"),       newlclosure},
 
-            {("hookfunction"),      hookfunction},
-            {("hookfunc"),          hookfunction},
-            {("replaceclosure"),    hookfunction},
-            {("clonefunction"),     clonefunction},
+            {oxorany_pchar(L"hookfunction"),      hookfunction},
+            {oxorany_pchar(L"hookfunc"),          hookfunction},
+            {oxorany_pchar(L"replaceclosure"),    hookfunction},
+            {oxorany_pchar(L"clonefunction"),     clonefunction},
 
-            {("loadstring"),        loadstring},
-            {("compile"),           loadstring},
+            {oxorany_pchar(L"loadstring"),        loadstring},
+            {oxorany_pchar(L"pushstring"),        loadstring},
+            {oxorany_pchar(L"compile"),           loadstring},
 
-            {nullptr,               nullptr},
+            {nullptr,                             nullptr},
     };
 
-    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_pushvalue(L, oxorany(LUA_GLOBALSINDEX));
     luaL_register(L, nullptr, reg);
-    lua_pop(L, 1);
+    lua_pop(L, oxorany(1));
 }

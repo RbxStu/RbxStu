@@ -72,7 +72,7 @@ void Scheduler::execute_job(SchedulerJob *job) {
     }
     auto *pClosure = const_cast<Closure *>(reinterpret_cast<const Closure *>(lua_topointer(nLs, -1)));
 
-    RBX::Security::Bypasses::set_luaclosure_security(pClosure);
+    RBX::Security::Bypasses::set_luaclosure_security(pClosure, RBX::Identity::Eight_Seven);
 
     wprintf(oxorany(L"[Scheduler::execute_job] Executing on RBX::ScriptContext::taskDefer...\r\n"));
     // lua_pcall(nLs, 0, 0, 0);

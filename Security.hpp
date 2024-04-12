@@ -3,6 +3,7 @@
 //
 #pragma once
 
+#include <lapi.h>
 #include "oxorany/oxorany.h"
 
 typedef int64_t (*Validator)(int64_t testAgainst, struct lua_State *testWith);
@@ -66,7 +67,7 @@ namespace RBX {
             void set_thread_security(lua_State *L, RBX::Identity identity);
 
             // Sets capabilities on Lua closures, returns false if the operation fails (i.e: The closure is a C closure).
-            bool set_luaclosure_security(Closure *cl);
+            bool set_luaclosure_security(Closure *cl, RBX::Identity identity);
         }
     }
 

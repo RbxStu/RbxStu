@@ -61,7 +61,7 @@ int64_t RBX::Security::to_obfuscated_identity(int64_t identity) {
 void RBX::Security::Bypasses::set_thread_security(lua_State *L, RBX::Identity identity) {
     if (L->userdata == nullptr) {
         // Assume unallocated, what else would be 0 goddam.
-        L->userdata = RBX::Studio::Functions::rbxAllocate(
+        L->userdata = malloc(
                 sizeof(RBX::Lua::ExtraSpace)); // Allocate structure for keyvals
     }
 
@@ -84,18 +84,19 @@ void RBX::Security::Bypasses::set_thread_security(lua_State *L, RBX::Identity id
     //wprintf(oxorany(L"[RBX::Security::Bypasses::set_thread_security]  taskStatus : 0x%p\r\n"), plStateUd->taskStatus);
 }
 
-void set_proto(Proto *proto, uintptr_t *proto_identity) {
+static void set_proto(Proto *proto, uintptr_t *proto_identity) {
     proto->userdata = static_cast<void *>(proto_identity);
     for (auto i = oxorany(0); i < proto->sizep; i++)
             set_proto(proto->p[i], proto_identity);
 }
 
-bool RBX::Security::Bypasses::set_luaclosure_security(Closure *cl) {
+bool RBX::Security::Bypasses::set_luaclosure_security(Closure *cl, RBX::Identity identity) {
     if (cl->isC) return false;
     auto protos = cl->l.p;
-    auto *mem = reinterpret_cast<std::uintptr_t *>(RBX::Studio::Functions::rbxAllocate(
-            sizeof(std::uintptr_t)));
-    *mem = oxorany(0x3FFFF00) | oxorany(0x3F);  // Magical constant | Identity 8.
+    auto *mem = protos->userdata != nullptr ? reinterpret_cast<std::uintptr_t *>(protos->userdata)
+                                            : reinterpret_cast<std::uintptr_t *>(malloc(sizeof(std::uintptr_t)));
+    *mem = oxorany(0x3FFFF00) | (RBX::Security::to_obfuscated_identity(
+            RBX::Security::deobfuscate_identity(identity)));  // Magical constant | Identity 8.
     set_proto(protos, mem);
     return true;
 }
