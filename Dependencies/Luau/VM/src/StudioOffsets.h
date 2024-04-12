@@ -25,7 +25,6 @@ namespace RBX::Studio::Offsets {
     const static std::uintptr_t rLuaD_throw = RebaseAddress(
                                                       0x142f78190);       // search for "memory allocation error: block too big". You will find luaG_runerrorL, last call is luaD_throw.
     const static std::uintptr_t rlua_newthread = RebaseAddress(0x142f72200);
-    const static std::uintptr_t rbxAllocate = RebaseAddress(0x141296eb0);       // Exported function.
     const static std::uintptr_t rTask_defer = RebaseAddress(0x141cb4d10);
 
     const static std::uintptr_t rFreeBlock = RebaseAddress(0x142f8ea70);
@@ -58,7 +57,7 @@ namespace RBX::Studio::Functions {
     const static auto rTask_defer = reinterpret_cast<FunctionTypes::rTask_defer>(RBX::Studio::Offsets::rTask_defer);
     const static auto rluaE_newthread = reinterpret_cast<FunctionTypes::rluaE_newthread>(RBX::Studio::Offsets::rluaE_newthread);
     const static auto rlua_newthread = reinterpret_cast<FunctionTypes::rlua_newthread>(RBX::Studio::Offsets::rlua_newthread);
-    const static auto rbxAllocate = reinterpret_cast<FunctionTypes::rbxAllocate>(RBX::Studio::Offsets::rbxAllocate);
+    // const static auto rbxAllocate = reinterpret_cast<FunctionTypes::rbxAllocate>(RBX::Studio::Offsets::rbxAllocate);
     const static auto rFromLuaState = reinterpret_cast<FunctionTypes::rFromLuaState>(RBX::Studio::Offsets::rFromLuaState);
     const static auto rFreeBlock = reinterpret_cast<FunctionTypes::rFreeBlock>(RBX::Studio::Offsets::rFreeBlock);
     const static auto rLuaD_throw = reinterpret_cast<FunctionTypes::rLuaD_throw>(RBX::Studio::Offsets::rLuaD_throw);
