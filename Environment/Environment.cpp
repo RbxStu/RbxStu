@@ -341,6 +341,18 @@ int Environment::Register(lua_State *L, bool useInitScript) {
                 local r = rRequire(moduleScript)
                 setIdentity_c(old)
             end)
+
+            getgenv_c().getnilinstances = newcclosure_c(function()
+                local Instances = {}
+
+                for _,Object in getreg() do
+                    if typeof(Object) == "Instance" and Object.Parent == nil then
+                      table.insert(Instances, Object)
+                    end
+                end
+
+                return Instances
+            end)
         )");
         execution->lua_loadstring(L, str, utilities->RandomString(32));
         lua_pcall(L, 0, 0, 0);
