@@ -34,6 +34,8 @@ namespace RBX::Studio::Offsets {
                                                                   0x142f77f40);     // Search for luaD_rununprotected, crawl until you reach into luaD_pcall, from which, search for xrefs into a function referencing luaO_nilobject and pseudo2addr, it will also have an if check at the end checking for a negative value (first bit set).
 
     const static std::uintptr_t rLuaC_Step = RebaseAddress(0x142f8c370);
+
+    const static std::uintptr_t rRBX__TaskScheduler__getSingleton = RebaseAddress(0x143b461c0);
 }
 
 struct lua_State;
@@ -57,6 +59,7 @@ namespace FunctionTypes {
                                                            void (*PFunc)(struct lua_State *L, void *ud),
                                                            void *ud);
     using rLuaC_Step = size_t (__fastcall *)(lua_State *L, bool assist);
+    using rRBX__TaskScheduler__getSingleton = void *(__fastcall *)(void);
 };
 
 namespace RBX::Studio::Functions {
@@ -71,6 +74,7 @@ namespace RBX::Studio::Functions {
     const static auto rLuaD_throw = reinterpret_cast<FunctionTypes::rLuaD_throw>(RBX::Studio::Offsets::rLuaD_throw);
     const static auto rLuaD_rawrununprotected = reinterpret_cast<FunctionTypes::rLuaD_rawrununprotected>(RBX::Studio::Offsets::rLuaD_rawrununprotected);
     const static auto rLuaC_Step = reinterpret_cast<FunctionTypes::rLuaC_Step>(RBX::Studio::Offsets::rLuaC_Step);
+    const static auto rRBX__TaskScheduler__getSingleton = reinterpret_cast<FunctionTypes::rRBX__TaskScheduler__getSingleton>(RBX::Studio::Offsets::rRBX__TaskScheduler__getSingleton);
     //  We don't require of Robloxs' luaC_step
     //  const static auto rLuaC_step = reinterpret_cast<FunctionTypes::rLuaC_step>(RBX::Studio::Offsets::rLuaC_step);
 }
