@@ -58,6 +58,11 @@ const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
 
         setclvalue(L, L->top, newcl);
         L->top++;
+
+        // Allow newcclosures to be cloned successfully by cloning the original for the wrapper.
+        if (this->IsCClosureHandler(cl))
+            this->AddWrappedClosure(newcl, this->FindWrappedClosure(cl));
+
         return reinterpret_cast<const Closure *>(lua_topointer(L, -1));
     } else {
         setclvalue(L, L->top, cl);
@@ -88,7 +93,8 @@ void Module::Closures::ToLClosure(lua_State *L, int idx) const {
     lua_setreadonly(L, -1, true);
     lua_setmetatable(L, -2);
 
-    lua_pushvalue(L, idx < 0 ? idx - 1 : idx);                                          // Push a copy of the val at idx into the top
+    lua_pushvalue(L, idx < 0 ? idx - 1
+                             : idx);                                          // Push a copy of the val at idx into the top
     lua_setfield(L, -2, oxorany_pchar(L"abcdefg"));    // Set abcdefg to that of idx
     auto code = oxorany_pchar(L"return abcdefg(...)");
     if (auto bytecode = execution->Compile(code);
@@ -128,7 +134,6 @@ int NewCClosureHandler(lua_State *L) {
     L->top++;                       // Increase top
 
     lua_insert(L, 1);
-
 
     if (const auto callResult = lua_pcall(L, argc, LUA_MULTRET, 0); callResult == LUA_YIELD &&
                                                                     (0 == std::strcmp(
