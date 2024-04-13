@@ -14,7 +14,9 @@
 #include <stdlib.h>
 
 #else
+
 #include <stdexcept>
+
 #endif
 
 #include <string.h>
@@ -42,7 +44,9 @@ struct lua_jmpbuf {
 #endif
 
 int luaD_rawrunprotected(lua_State *L, Pfunc f, void *ud) {
-    lua_jmpbuf jb;
+    return RBX::Studio::Functions::rLuaD_rawrununprotected(L, f, ud);
+
+    /*lua_jmpbuf jb;
     jb.prev = L->global->errorjmp;
     jb.status = 0;
     L->global->errorjmp = &jb;
@@ -51,7 +55,7 @@ int luaD_rawrunprotected(lua_State *L, Pfunc f, void *ud) {
         f(L, ud);
 
     L->global->errorjmp = jb.prev;
-    return jb.status;
+    return jb.status;*/
 }
 
 l_noret luaD_throw(lua_State *L, int errcode) {
@@ -69,63 +73,56 @@ l_noret luaD_throw(lua_State *L, int errcode) {
 }
 
 #else
-class lua_exception : public std::exception
-{
+
+class lua_exception : public std::exception {
 public:
-    lua_exception(lua_State* L, int status)
-        : L(L)
-        , status(status)
-    {
+    lua_exception(lua_State *L, int status)
+            : L(L), status(status) {
     }
 
-    const char* what() const throw() override
-    {
+    const char *what() const throw() override {
         // LUA_ERRRUN passes error object on the stack
         if (status == LUA_ERRRUN)
-            if (const char* str = lua_tostring(L, -1))
+            if (const char *str = lua_tostring(L, -1))
                 return str;
 
-        switch (status)
-        {
-        case LUA_ERRRUN:
-            return "lua_exception: runtime error";
-        case LUA_ERRSYNTAX:
-            return "lua_exception: syntax error";
-        case LUA_ERRMEM:
-            return "lua_exception: " LUA_MEMERRMSG;
-        case LUA_ERRERR:
-            return "lua_exception: " LUA_ERRERRMSG;
-        default:
-            return "lua_exception: unexpected exception status";
+        switch (status) {
+            case LUA_ERRRUN:
+                return "lua_exception: runtime error";
+            case LUA_ERRSYNTAX:
+                return "lua_exception: syntax error";
+            case LUA_ERRMEM:
+                return "lua_exception: " LUA_MEMERRMSG;
+            case LUA_ERRERR:
+                return "lua_exception: " LUA_ERRERRMSG;
+            default:
+                return "lua_exception: unexpected exception status";
         }
     }
 
-    int getStatus() const
-    {
+    int getStatus() const {
         return status;
     }
 
-    const lua_State* getThread() const
-    {
+    const lua_State *getThread() const {
         return L;
     }
 
 private:
-    lua_State* L;
+    lua_State *L;
     int status;
 };
 
-int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
-{
+int luaD_rawrunprotected(lua_State *L, Pfunc f, void *ud) {
+    return RBX::Studio::Functions::rLuaD_rawrununprotected(L, f, ud);
+
     int status = 0;
 
-    try
-    {
+    try {
         f(L, ud);
         return 0;
     }
-    catch (lua_exception& e)
-    {
+    catch (lua_exception &e) {
         // It is assumed/required that the exception caught here was thrown from the same Luau state.
         // If this assert fires, it indicates a lua_exception was not properly caught and propagated
         // to the exception handler for a different Luau state. Report this issue to the Luau team if
@@ -134,17 +131,14 @@ int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
 
         status = e.getStatus();
     }
-    catch (std::exception& e)
-    {
+    catch (std::exception &e) {
         // Luau will never throw this, but this can catch exceptions that escape from C++ implementations of external functions
-        try
-        {
+        try {
             // there's no exception object on stack; let's push the error on stack so that error handling below can proceed
             luaG_pusherror(L, e.what());
             status = LUA_ERRRUN;
         }
-        catch (std::exception&)
-        {
+        catch (std::exception &) {
             // out of memory while allocating error string
             status = LUA_ERRMEM;
         }
@@ -153,10 +147,12 @@ int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
     return status;
 }
 
-l_noret luaD_throw(lua_State* L, int errcode)
-{
-    throw lua_exception(L, errcode);
+l_noret luaD_throw(lua_State *L, int errcode) {
+    RBX::Studio::Functions::rLuaD_throw(L, errcode);
+
+    //throw lua_exception(L, errcode);
 }
+
 #endif
 
 // }======================================================
