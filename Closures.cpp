@@ -47,16 +47,18 @@ static void set_proto(Proto *proto, uintptr_t *proto_identity) {
 
 const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
     if (cl->isC) {
-        Closure *newcl = luaF_newCclosure(L, cl->nupvalues, cl->env);
-        newcl->c.f = (lua_CFunction) cl->c.f;
-        newcl->c.cont = (lua_Continuation) cl->c.cont;
+        Closure *newcl = luaF_newCclosure(L, cl->nupvalues + 1, cl->env);
+
         if (cl->c.debugname != nullptr)
             newcl->c.debugname = (const char *) cl->c.debugname;
 
         for (int i = 0; i < cl->nupvalues; i++)
-                setobj2n (L, &newcl->c.upvals[i], &cl->c.upvals[i]);
+            setobj2n(L, &newcl->c.upvals[i], &cl->c.upvals[i])
 
-        setclvalue(L, L->top, newcl);
+        newcl->c.f = (lua_CFunction) cl->c.f;
+        newcl->c.cont = (lua_Continuation) cl->c.cont;
+
+        setclvalue(L, L->top, newcl)
         L->top++;
 
         // Allow newcclosures to be cloned successfully by cloning the original for the wrapper.
@@ -65,7 +67,7 @@ const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
 
         return reinterpret_cast<const Closure *>(lua_topointer(L, -1));
     } else {
-        setclvalue(L, L->top, cl);
+        setclvalue(L, L->top, cl)
         L->top++;
         lua_clonefunction(L, -1);
         auto l = reinterpret_cast<Closure *>(const_cast<void *>(lua_topointer(L, -1)))->l;
