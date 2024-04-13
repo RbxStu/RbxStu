@@ -13,6 +13,7 @@
 #include "Utilities.hpp"
 #include "Scheduler.hpp"
 #include "Hook.hpp"
+#include "RBXScheduler.h"
 
 
 long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
@@ -85,16 +86,18 @@ long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
                         address,
                         reinterpret_cast<PDWORD64>(pValue),
                         symbol)) {
-            printf(oxorany_pchar(L"[Stack Frame %d] Inside %s @ 0x%p; Studio Rebase: 0x%p\r\n"), i, symbol->Name, address,
-                    address -
-                    reinterpret_cast<std::uintptr_t>(GetModuleHandleA(("RobloxStudioBeta.exe"))) +
-                    0x140000000);
+            printf(oxorany_pchar(L"[Stack Frame %d] Inside %s @ 0x%p; Studio Rebase: 0x%p\r\n"), i, symbol->Name,
+                   address,
+                   address -
+                   reinterpret_cast<std::uintptr_t>(GetModuleHandleA(("RobloxStudioBeta.exe"))) +
+                   0x140000000);
         } else {
-            printf(oxorany_pchar(L"[Stack Frame %d] Unknown Subroutine @ 0x%p; Studio Rebase: 0x%p\r\n"), i, symbol->Name,
-                    address,
-                    address -
-                    reinterpret_cast<std::uintptr_t>(GetModuleHandleA(("RobloxStudioBeta.exe"))) +
-                    0x140000000);
+            printf(oxorany_pchar(L"[Stack Frame %d] Unknown Subroutine @ 0x%p; Studio Rebase: 0x%p\r\n"), i,
+                   symbol->Name,
+                   address,
+                   address -
+                   reinterpret_cast<std::uintptr_t>(GetModuleHandleA(("RobloxStudioBeta.exe"))) +
+                   0x140000000);
         }
     }
     std::cout << std::endl;
@@ -138,6 +141,17 @@ int main(int argc, char **argv, char **envp) {
     hook->wait_until_initialised();
     hook->remove_hook();
 
+
+    /*
+        // Will crash, Offsets will be revised at a later date.
+        std::thread([]() {
+            auto *rbxScheduler = RBX::TaskScheduler::getSingleton();
+            while (true) {
+                Sleep(rbxScheduler->cycleInterval.sec);
+                printf("RBX Scheduler Tick!\r\n");
+            }
+        }).detach();
+     */
 
     wprintf(oxorany(L"[main] Hook initialized. State grabbed.\r\n"));
 
