@@ -414,47 +414,26 @@ int Environment::Register(lua_State *L, bool useInitScript) {
 
         // Initialize execution,
         std::string str = oxorany_pchar(LR"(
-print("Cloning")
 local clonefunction_c = clonefunction(clonefunction)
-print("chkcall")
 local checkcaller_c = clonefunction(checkcaller)
-print("svc")
 local game_getservice = clonefunction_c(game.GetService)
-print("lla")
 local insertservice_LoadLocalAsset = clonefunction_c(game_getservice(game, "InsertService").LoadLocalAsset)
-print("strmatch")
 local string_match = clonefunction_c(string.match)
-print("strlow")
 local string_tolower = clonefunction_c(string.lower)
-print("genv")
 local getgenv_c = clonefunction_c(getgenv)
-print("gid")
 local getIdentity_c = clonefunction_c(getidentity)
-print("sid")
 local setIdentity_c = clonefunction_c(setidentity)
-print("req")
 local rRequire = clonefunction_c(require)
-print("hookf")
 local hookfunction_c = clonefunction_c(hookfunction)
-print("nwc")
 local newcclosure_c = clonefunction_c(newcclosure)
-print("grm")
 local getrawmetatable_c = clonefunction_c(getrawmetatable)
-print("err")
 local error_c = clonefunction_c(error)
-print("gncm")
 local getnamecallmethod_c = clonefunction_c(getnamecallmethod)
-print("httpp")
 local HttpPost_c = clonefunction_c(HttpPost)
-print("httpg")
 local HttpGet_c = clonefunction_c(HttpGet)
-print("selc")
 local select_c = clonefunction_c(select)
-print("pairs")
 local pairs_c = clonefunction_c(pairs)
-print("tof")
 local typeof_c = clonefunction_c(typeof)
-print("tinsrt")
 local table_insert = clonefunction_c(table.insert)
 
 print("setting genv")
@@ -525,20 +504,19 @@ local illegal = {
 	"ExecuteJavaScript",
 }
 --[[
-print("installing namecall hook")
 local oldNamecall
 oldNamecall = hookmetamethod_c(game, "__namecall", function(...)
 	if not checkcaller_c() then
 		return oldNamecall(...)
 	end
 	print("NAMECALL")
-	local namecallName = string.lower(getnamecallmethod_c())
+	local namecallName = string_lower(getnamecallmethod_c())
 
 	-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
 	-- Unacceptable.
 	print(namecallName)
 	for _, str in pairs_c(illegal) do
-		if string_match(namecallName, string.lower(str)) then
+		if string_match(namecallName, string_lower(str)) then
 			error_c("This function has been disabled for security reasons.")
 		end
 	end
@@ -556,9 +534,8 @@ oldNamecall = hookmetamethod_c(game, "__namecall", function(...)
 	end
 
 	return oldNamecall(...)
-end)]]
+end)
 
---[[print("installing index hook")
 local oldIndex
 oldIndex = hookmetamethod_c(game, "__index", function(...)
 	if not checkcaller_c() then
@@ -570,14 +547,14 @@ oldIndex = hookmetamethod_c(game, "__index", function(...)
 	print("IDX")
 
 	local self = select_c(1, ...)
-	local idx = string.lower(select_c(2, ...))
+	local idx = string_lower(select_c(2, ...))
 
 	-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
 	-- Unacceptable.
 
 	print(idx)
 	for _, str in pairs_c(illegal) do
-		if string_match(idx, string.lower(str)) then
+		if string_match(idx, string_lower(str)) then
 			error_c("This function has been disabled for security reasons.")
 		end
 	end
@@ -596,6 +573,7 @@ oldIndex = hookmetamethod_c(game, "__index", function(...)
 
 	return oldIndex(...)
 end)]]
+
         )");
         //execution->lua_loadstring(L, str, utilities->RandomString(32),
         //                          static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(
