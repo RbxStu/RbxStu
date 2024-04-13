@@ -873,6 +873,8 @@ static void f_call(lua_State *L, void *ud) {
 }
 
 int lua_pcall(lua_State *L, int nargs, int nresults, int errfunc) {
+    return RBX::Studio::Functions::rLua_pcall(L, nargs, nresults, errfunc);
+
     api_checknelems(L, nargs + 1);
     api_check(L, L->status == 0);
     checkresults(L, nargs, nresults);

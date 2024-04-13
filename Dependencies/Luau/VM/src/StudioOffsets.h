@@ -30,6 +30,8 @@ namespace RBX::Studio::Offsets {
     const static std::uintptr_t rFreeBlock = RebaseAddress(0x142f8ea70);
     const static std::uintptr_t rFromLuaState = RebaseAddress(
                                                         0x141b05490);     // Appears to copy ones' L->userdata into another for new states. Search for "Failed to create Lua State", on the userthread user callback.
+    const static std::uintptr_t rLua_pcall = RebaseAddress(
+                                                     0x142f72440);     // Search for luaD_rununprotected, crawl until you reach into luaD_pcall, from which, search for xrefs into a function referencing luaO_nilobject and pseudo2addr, it will also have an if check at the end checking for a negative value (first bit set).
 }
 
 struct lua_State;
@@ -49,6 +51,7 @@ namespace FunctionTypes {
     using rFromLuaState = void (__fastcall *)(lua_State *LP, lua_State *L);
     using rFreeBlock = void (__fastcall *)(lua_State *L, int32_t sizeClass, void *block);
     using rLuaD_throw = void (__fastcall *)(lua_State *L, int32_t errcode);
+    using rLua_pcall = int (__fastcall *)(lua_State *L, int nargs, int nresults, int errfunc);
 };
 
 namespace RBX::Studio::Functions {
@@ -61,6 +64,7 @@ namespace RBX::Studio::Functions {
     const static auto rFromLuaState = reinterpret_cast<FunctionTypes::rFromLuaState>(RBX::Studio::Offsets::rFromLuaState);
     const static auto rFreeBlock = reinterpret_cast<FunctionTypes::rFreeBlock>(RBX::Studio::Offsets::rFreeBlock);
     const static auto rLuaD_throw = reinterpret_cast<FunctionTypes::rLuaD_throw>(RBX::Studio::Offsets::rLuaD_throw);
+    const static auto rLua_pcall = reinterpret_cast<FunctionTypes::rLua_pcall>(RBX::Studio::Offsets::rLua_pcall);
     //  We don't require of Robloxs' luaC_step
     //  const static auto rLuaC_step = reinterpret_cast<FunctionTypes::rLuaC_step>(RBX::Studio::Offsets::rLuaC_step);
 }
