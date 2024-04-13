@@ -8,30 +8,17 @@ set(CMAKE_CXX_STANDARD 23)
 add_library(Module SHARED
         main.cpp
         Execution.cpp
-        Execution.hpp
         Environment/Environment.cpp
-        Environment/Environment.hpp
         Execution.cpp
         Utilities.cpp
-        Utilities.hpp
         Closures.cpp
-        Closures.hpp
         Environment/EnvironmentLibrary.cpp
-        Environment/EnvironmentLibrary.hpp
-        Environment/EnvironmentLibrary.hpp
         Environment/ClosureLibrary.cpp
-        Environment/ClosureLibrary.hpp
         Environment/DebugLibrary.cpp
-        Environment/DebugLibrary.hpp
         Scheduler.cpp
-        Scheduler.hpp
         Security.cpp
         Hook.cpp
-        Hook.hpp
-        Hook.hpp
-        Security.hpp
         RBXScheduler.cpp
-        RBXScheduler.h
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Dependencies")
