@@ -202,7 +202,10 @@ int checkcaller(lua_State *L) {
 
     // We must include a better checkcaller, at least for the future, this gayass check is killing me so bad.
     lua_pushboolean(L, extraSpace != nullptr && ((extraSpace->identity >= 4 && extraSpace->identity <=
-                                                                               9)));   // Check identity and the globalActorState (which we messed with to mark our thread)
+                                                                               9)) && L->global->mainthread ==
+                                                                                      Scheduler::get_singleton()->get_global_executor_state()->global->mainthread);
+    // Check identity, the main thread of our original thread HAS to match up as well, else it is not one of our states at ALL!
+    // That is also another way we can check with the identity!
     return 1;
 }
 
@@ -282,8 +285,9 @@ int getnamecallmethod(lua_State *L) {
     const char *namecall_method = lua_namecallatom(L, nullptr);
     if (namecall_method == nullptr)
         lua_pushnil(L);
-    else
+    else {
         lua_pushlstring(L, namecall_method, strlen(namecall_method));
+    }
 
     return 1;
 }
@@ -413,7 +417,7 @@ int Environment::Register(lua_State *L, bool useInitScript) {
         auto utilities{Module::Utilities::get_singleton()};
 
         // Initialize execution,
-        std::string str = oxorany_pchar(LR"(
+        std::string str = (R"(
 local clonefunction_c = clonefunction(clonefunction)
 local checkcaller_c = clonefunction(checkcaller)
 local game_getservice = clonefunction_c(game.GetService)
@@ -503,34 +507,37 @@ local illegal = {
 	"RequestInternal",
 	"ExecuteJavaScript",
 }
---[[
+
 local oldNamecall
 oldNamecall = hookmetamethod_c(game, "__namecall", function(...)
-	if not checkcaller_c() then
+	if typeof(select_c(1, ...)) ~= "Instance" or not checkcaller_c() then
 		return oldNamecall(...)
 	end
-	print("NAMECALL")
-	local namecallName = string_lower(getnamecallmethod_c())
+
+	local namecallName = (getnamecallmethod_c())
 
 	-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
 	-- Unacceptable.
-	print(namecallName)
 	for _, str in pairs_c(illegal) do
-		if string_match(namecallName, string_lower(str)) then
-			error_c("This function has been disabled for security reasons.")
+        if string_match(string_lower(namecallName), string_lower(str)) then
+            print("Matched")
+			return error_c("This function has been disabled for security reasons.")
 		end
 	end
 
-	if namecallName == "getasync" or namecallName == "httpget" then
+	if idx == "HttpGetAsync" or idx == "HttpGet" then
 		return HttpGet_c(select_c(2, ...)) -- 1 self, 2 arg (url)
+
 	end
 
-	if namecallName == "postasync" or namecallName == "httppost" then
+	if idx == "HttpPostAsync" or idx == "HttpPost" then
 		return HttpPost_c(select_c(2, ...)) -- 1 self, 2 arg (url)
+
 	end
 
-	if namecallName == "getobjects" then
+	if idx == "GetObjects" then
 		return GetObjects_c(select_c(2, ...)) -- 1 self, 2 arg (table/string)
+
 	end
 
 	return oldNamecall(...)
@@ -541,46 +548,43 @@ oldIndex = hookmetamethod_c(game, "__index", function(...)
 	if not checkcaller_c() then
 		return oldIndex(...)
 	end
-	if select_c(1, ...) ~= "Instance" or typeof(select_c(2, ...)) ~= "string" then
+	if typeof(select_c(1, ...)) ~= "Instance" or typeof(select_c(2, ...)) ~= "string" then
 		return oldIndex(...)
 	end
-	print("IDX")
 
 	local self = select_c(1, ...)
-	local idx = string_lower(select_c(2, ...))
+	local idx = select_c(2, ...)
 
 	-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
 	-- Unacceptable.
-
-	print(idx)
-	for _, str in pairs_c(illegal) do
-		if string_match(idx, string_lower(str)) then
-			error_c("This function has been disabled for security reasons.")
+	for _, str in pairs(illegal) do
+        if string_match(idx, (str)) then
+            print("Matched")
+			return error_c("This function has been disabled for security reasons.")
 		end
 	end
 
-	if idx == "getasync" or idx == "httpget" then
+	if idx == "HttpGetAsync" or idx == "HttpGet" then
 		return clonefunction_c(HttpGet_c)
 	end
 
-	if idx == "postasync" or idx == "httppost" then
+	if idx == "HttpPostAsync" or idx == "HttpPost" then
 		return clonefunction_c(HttpPost_c)
 	end
 
-	if idx == "getobjects" then
+	if idx == "GetObjects" then
 		return clonefunction_c(GetObjects_c)
 	end
 
 	return oldIndex(...)
-end)]]
-
+end)
         )");
-        //execution->lua_loadstring(L, str, utilities->RandomString(32),
-        //                          static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(
-        //                                  static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
-        //lua_pcall(L, 0, 0, 0);
+        execution->lua_loadstring(L, str, utilities->RandomString(32),
+                                  static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(
+                                          static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
+        lua_pcall(L, 0, 0, 0);
         //RBX::Studio::Functions::rTask_defer(L);
-        Scheduler::get_singleton()->schedule_job(str);
+        //Scheduler::get_singleton()->schedule_job(str);
         std::cout << oxorany_pchar(L"Init script queued.") << std::endl;
         Sleep(200);
     }
