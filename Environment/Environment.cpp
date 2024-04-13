@@ -21,6 +21,7 @@
 #include "Scheduler.hpp"
 #include "Hook.hpp"
 #include "Security.hpp"
+#include "ltable.h"
 
 Environment *Environment::singleton = nullptr;
 
@@ -144,6 +145,28 @@ int getgc(lua_State *L) {
     return 1;
 }
 
+int httppost(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TUSERDATA);
+    luaL_checktype(L, 2, LUA_TSTRING);
+    luaL_checktype(L, 3, LUA_TSTRING);
+    luaL_checktype(L, 4, LUA_TSTRING);
+
+    const std::string targetUrl = lua_tostring(L, 2);
+
+    if (targetUrl.find(oxorany_pchar(L"http://")) != 0 && targetUrl.find(oxorany_pchar(L"https://")) != 0) {
+        luaG_runerror(L, oxorany_pchar(L"Invalid protocol (expected 'http://' or 'https://')"));
+    }
+
+    const auto *postData = lua_tostring(L, 3);
+    const auto *contentType = lua_tostring(L, 4);
+
+    auto response = cpr::Post(cpr::Url{targetUrl}, cpr::Body{postData},
+                              cpr::Header{{oxorany_pchar(L"Content-Type"), contentType}});
+    std::string data2(response.text.begin(), response.text.end());
+    lua_pushlstring(L, data2.c_str(), data2.size());
+    return 1;
+}
+
 int httpget(lua_State *L) {
     std::string targetUrl = lua_tostring(L, 1);
 
@@ -257,17 +280,82 @@ int make_readonly(lua_State *L) {
 
 int getnamecallmethod(lua_State *L) {
     const char *namecall_method = lua_namecallatom(L, nullptr);
-    if (namecall_method == nullptr) {
+    if (namecall_method == nullptr)
         lua_pushnil(L);
-    }
-    lua_pushstring(L, namecall_method);
+    else
+        lua_pushlstring(L, namecall_method, strlen(namecall_method));
+
     return 1;
 }
 
 int identifyexecutor(lua_State *L) {
-    lua_pushstring(L, oxorany_pchar("RbxStu"));
-    lua_pushstring(L, oxorany_pchar("1.0.0"));
+    lua_pushstring(L, oxorany_pchar(L"RbxStu"));
+    lua_pushstring(L, oxorany_pchar(L"1.0.0"));
     return 2;
+}
+
+int hookmetamethod(lua_State *L) {  // Crashes on usage due to table related issues.
+    printf("typecheck\r\n");
+    if (lua_type(L, 1) != LUA_TTABLE && lua_type(L, 1) != LUA_TUSERDATA) {
+        luaL_typeerrorL(L, 1, oxorany_pchar("table or userdata"));
+    }
+
+    printf("typecheck\r\n");
+    luaL_checktype(L, 2, LUA_TSTRING);
+    printf("typecheck\r\n");
+    luaL_checktype(L, 3, LUA_TFUNCTION);
+
+    printf("toptr 1\r\n");
+    const auto *obj = static_cast<const lua_TValue *>(lua_topointer(L, 1));
+    Table *mt;
+
+    printf("mt retrieval 1\r\n");
+    if (lua_type(L, 1) == LUA_TTABLE)
+        mt = hvalue(obj)->metatable;
+    else
+        mt = uvalue(obj)->metatable;
+
+    printf("mt ptr check\r\n");
+    if (!mt)
+        luaL_typeerrorL(L, 1, oxorany_pchar(L"table or userdata with a metatable."));
+
+    printf("mt name\r\n");
+    const auto metamethodName = lua_tostring(L, 2);
+
+    printf("push mt to stktp, rawget\r\n");
+    L->top->tt = LUA_TTABLE;
+    L->top->value.p = static_cast<void *>(mt);
+    L->top++;
+    lua_getfield(L, -1, metamethodName);
+    printf("mm cl, rawget\r\n");
+    const auto *metamethodCl = static_cast<const lua_TValue *>(lua_topointer(L, -1));
+
+    if (metamethodCl->tt == LUA_TNIL)
+        luaL_error(L, oxorany_pchar(L"table or userdata has no metamethod with name %s"), metamethodName);
+
+    L->top->tt = LUA_TFUNCTION;
+    L->top->value.p = static_cast<void *>(const_cast<lua_TValue *>(metamethodCl));
+    L->top++;                       // toHook
+    lua_pushvalue(L, 3);            // hookWith
+
+    printf("hookf\r\n");
+    lua_getglobal(L, oxorany_pchar(L"hookfunction"));
+    printf("lua_pcall\r\n");
+    lua_pcall(L, 2, 1, 0);
+    printf("ret\r\n");
+
+    return 1;
+}
+
+int gettenv(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTHREAD);
+    const auto *otherL = static_cast<const lua_State *>(lua_topointer(L, 1));
+
+    auto nT = luaH_clone(L, otherL->gt);
+    L->top->tt = LUA_TTABLE;
+    L->top->value.p = static_cast<void *>(nT);
+    L->top++;
+    return 1;
 }
 
 int Environment::Register(lua_State *L, bool useInitScript) {
@@ -291,11 +379,16 @@ int Environment::Register(lua_State *L, bool useInitScript) {
             {oxorany_pchar(L"getexecutorname"),   identifyexecutor},
 
 
-            {oxorany_pchar("consoleprint"),       consoleprint},
-            {oxorany_pchar("consolewarn"),        consolewarn},
-            {oxorany_pchar("consoleerror"),       consoleerror},
+            {oxorany_pchar(L"consoleprint"),      consoleprint},
+            {oxorany_pchar(L"consolewarn"),       consolewarn},
+            {oxorany_pchar(L"consoleerror"),      consoleerror},
+
+            // {oxorany_pchar(L"hookmetamethod"),    hookmetamethod},
+
+            {oxorany_pchar(L"gettenv"),           gettenv},
 
             {oxorany_pchar(L"HttpGet"),           httpget},
+            {oxorany_pchar(L"HttpPost"),          httppost},
 
             // {oxorany_pchar(L"reinit"),            reinit},
 
@@ -319,67 +412,199 @@ int Environment::Register(lua_State *L, bool useInitScript) {
         auto execution{Execution::GetSingleton()};
         auto utilities{Module::Utilities::get_singleton()};
 
-        // Add init script, (someday!!!)
+        // Initialize execution,
         std::string str = oxorany_pchar(LR"(
-            local getgenv_c = clonefunction(getgenv)
-            local getIdentity_c = clonefunction(getidentity)
-            local setIdentity_c = clonefunction(setidentity)
-            local rRequire = clonefunction(require)
-            local hookfunction_c = clonefunction(hookfunction)
-            local newcclosure_c = clonefunction(newcclosure)
+print("Cloning")
+local clonefunction_c = clonefunction(clonefunction)
+print("chkcall")
+local checkcaller_c = clonefunction(checkcaller)
+print("svc")
+local game_getservice = clonefunction_c(game.GetService)
+print("lla")
+local insertservice_LoadLocalAsset = clonefunction_c(game_getservice(game, "InsertService").LoadLocalAsset)
+print("strmatch")
+local string_match = clonefunction_c(string.match)
+print("strlow")
+local string_tolower = clonefunction_c(string.lower)
+print("genv")
+local getgenv_c = clonefunction_c(getgenv)
+print("gid")
+local getIdentity_c = clonefunction_c(getidentity)
+print("sid")
+local setIdentity_c = clonefunction_c(setidentity)
+print("req")
+local rRequire = clonefunction_c(require)
+print("hookf")
+local hookfunction_c = clonefunction_c(hookfunction)
+print("nwc")
+local newcclosure_c = clonefunction_c(newcclosure)
+print("grm")
+local getrawmetatable_c = clonefunction_c(getrawmetatable)
+print("err")
+local error_c = clonefunction_c(error)
+print("gncm")
+local getnamecallmethod_c = clonefunction_c(getnamecallmethod)
+print("httpp")
+local HttpPost_c = clonefunction_c(HttpPost)
+print("httpg")
+local HttpGet_c = clonefunction_c(HttpGet)
+print("selc")
+local select_c = clonefunction_c(select)
+print("pairs")
+local pairs_c = clonefunction_c(pairs)
+print("tof")
+local typeof_c = clonefunction_c(typeof)
+print("tinsrt")
+local table_insert = clonefunction_c(table.insert)
 
-            getgenv_c().GetObjects = newcclosure_c(function(assetId)
-                local oldId = getIdentity_c()
-                setIdentity_c(8)
-                local obj = game.GetService(game, "InsertService").LoadLocalAsset((game.GetService(game, "InsertService")), assetId)
-                setIdentity_c(oldId)
-                return obj
-            end)
+print("setting genv")
+getgenv_c().GetObjects = newcclosure_c(function(assetId)
+	local oldId = getIdentity_c()
+	setIdentity_c(8)
+	local obj = insertservice_LoadLocalAsset(game_getservice(game, "InsertService"), assetId)
+	setIdentity_c(oldId)
+	return obj
+end)
+local GetObjects_c = clonefunction_c(getgenv_c().GetObjects)
 
-            --[[
-                getgenv_c().hookmetamethod = newcclosure_c(function(t, metamethod, replaceWith)
-                    local mt = getrawmetatable(t)
-                    if not mt[t] then error("Cannot find metamethod " .. metamethod .. " on metatable.") end
-                    return hookfunction_c(mt[t], replaceWith)
-                end)
-            ]]
-            getgenv_c().require = newcclosure_c(function(moduleScript)
-                local old = getIdentity_c()
-                setIdentity_c(2)
-                local r = rRequire(moduleScript)
-                setIdentity_c(old)
-            end)
+getgenv_c().hookmetamethod = newcclosure_c(function(t, metamethod, fun)
+	local mt = getrawmetatable_c(t)
+	if not mt[metamethod] then
+		error_c("hookmetamethod: No metamethod found with name " .. metamethod .. " in metatable.")
+	end
+	return hookfunction_c(mt[metamethod], fun)
+end)
+local hookmetamethod_c = clonefunction_c(getgenv_c().hookmetamethod)
 
-            getgenv_c().getnilinstances = newcclosure_c(function()
-                local Instances = {}
+getgenv_c().require = newcclosure_c(function(moduleScript)
+	local old = getIdentity_c()
+	setIdentity_c(2)
+	local r = rRequire(moduleScript)
+	setIdentity_c(old)
+	return r
+end)
 
-                for _,Object in getreg() do
-                    if typeof(Object) == "Instance" and Object.Parent == nil then
-                      table.insert(Instances, Object)
-                    end
-                end
+getgenv_c().getnilinstances = newcclosure_c(function()
+	local Instances = {}
 
-                return Instances
-            end)
+	for _, Object in getreg() do
+		if typeof_c(Object) == "Instance" and Object.Parent == nil then
+			table_insert(Instances, Object)
+		end
+	end
 
-            getgenv_c().getinstances = newcclosure_c(function()
-                local Instances = {}
+	return Instances
+end)
 
-                for _,Object in getreg() do
-                    if typeof(Object) == "Instance" then
-                      table.insert(Instances, Object)
-                    end
-                end
+getgenv_c().getinstances = newcclosure_c(function()
+	local Instances = {}
 
-                return Instances
-            end)
+	for _, obj in getreg() do
+		if typeof_c(obj) == "Instance" then
+			table_insert(Instances, obj)
+		end
+	end
+
+	return Instances
+end)
+
+local illegal = {
+	"OpenVideosFolder",
+	"OpenScreenshotsFolder",
+	"GetRobuxBalance",
+	"PerformPurchase",
+	"PromptBundlePurchase",
+	"PromptNativePurchase",
+	"PromptProductPurchase",
+	"PromptPurchase",
+	"PromptThirdPartyPurchase",
+	"Publish",
+	"GetMessageId",
+	"OpenBrowserWindow",
+	"RequestInternal",
+	"ExecuteJavaScript",
+}
+--[[
+print("installing namecall hook")
+local oldNamecall
+oldNamecall = hookmetamethod_c(game, "__namecall", function(...)
+	if not checkcaller_c() then
+		return oldNamecall(...)
+	end
+	print("NAMECALL")
+	local namecallName = string.lower(getnamecallmethod_c())
+
+	-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
+	-- Unacceptable.
+	print(namecallName)
+	for _, str in pairs_c(illegal) do
+		if string_match(namecallName, string.lower(str)) then
+			error_c("This function has been disabled for security reasons.")
+		end
+	end
+
+	if namecallName == "getasync" or namecallName == "httpget" then
+		return HttpGet_c(select_c(2, ...)) -- 1 self, 2 arg (url)
+	end
+
+	if namecallName == "postasync" or namecallName == "httppost" then
+		return HttpPost_c(select_c(2, ...)) -- 1 self, 2 arg (url)
+	end
+
+	if namecallName == "getobjects" then
+		return GetObjects_c(select_c(2, ...)) -- 1 self, 2 arg (table/string)
+	end
+
+	return oldNamecall(...)
+end)]]
+
+--[[print("installing index hook")
+local oldIndex
+oldIndex = hookmetamethod_c(game, "__index", function(...)
+	if not checkcaller_c() then
+		return oldIndex(...)
+	end
+	if select_c(1, ...) ~= "Instance" or typeof(select_c(2, ...)) ~= "string" then
+		return oldIndex(...)
+	end
+	print("IDX")
+
+	local self = select_c(1, ...)
+	local idx = string.lower(select_c(2, ...))
+
+	-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
+	-- Unacceptable.
+
+	print(idx)
+	for _, str in pairs_c(illegal) do
+		if string_match(idx, string.lower(str)) then
+			error_c("This function has been disabled for security reasons.")
+		end
+	end
+
+	if idx == "getasync" or idx == "httpget" then
+		return clonefunction_c(HttpGet_c)
+	end
+
+	if idx == "postasync" or idx == "httppost" then
+		return clonefunction_c(HttpPost_c)
+	end
+
+	if idx == "getobjects" then
+		return clonefunction_c(GetObjects_c)
+	end
+
+	return oldIndex(...)
+end)]]
         )");
-        execution->lua_loadstring(L, str, utilities->RandomString(32),
-                                  static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(
-                                          static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
-        lua_pcall(L, 0, 0, 0);
-        // RBX::Studio::Functions::rTask_defer(L);
-        std::cout << oxorany_pchar(L"Init script executed.") << std::endl;
+        //execution->lua_loadstring(L, str, utilities->RandomString(32),
+        //                          static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(
+        //                                  static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
+        //lua_pcall(L, 0, 0, 0);
+        //RBX::Studio::Functions::rTask_defer(L);
+        Scheduler::get_singleton()->schedule_job(str);
+        std::cout << oxorany_pchar(L"Init script queued.") << std::endl;
+        Sleep(200);
     }
 
     return 0;
