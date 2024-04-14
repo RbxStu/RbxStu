@@ -32,7 +32,11 @@ Environment *Environment::GetSingleton() {
 }
 
 int getreg(lua_State *L) {
-    lua_pushvalue(L, LUA_REGISTRYINDEX);
+    auto scheduler{Scheduler::get_singleton()};
+
+    L->top->tt = LUA_TTABLE;
+    L->top->value = scheduler->get_global_roblox_state()->global->registry.value;
+    L->top++;
     return 1;
 }
 
@@ -460,7 +464,6 @@ getgenv_c().GetObjects = newcclosure_c(function(assetId)
 	return obj
 end)
 local GetObjects_c = clonefunction_c(getgenv_c().GetObjects)
-getgenv_c().getcustomasset = GetObjects_c
 
 getgenv_c().hookmetamethod = newcclosure_c(function(t, metamethod, fun)
 	local mt = getrawmetatable_c(t)
@@ -484,7 +487,7 @@ getgenv_c().getnilinstances = newcclosure_c(function()
 	local Instances = {}
 
 	for _, Object in getreg() do
-		if typeof(Object) == "Instance" and Object.Parent == nil then
+		if typeof_c(Object) == "Instance" and Object.Parent == nil then
 			table.insert(Instances, Object)
 		end
 	end
@@ -496,7 +499,7 @@ getgenv_c().getinstances = newcclosure_c(function()
 	local Instances = {}
 
 	for _, obj in getreg() do
-		if typeof(obj) == "Instance" then
+		if obj and typeof_c(obj) == "Instance" then
 			table.insert(Instances, obj)
 		end
 	end
@@ -512,7 +515,7 @@ getgenv_c().getsenv = newcclosure_c(function(scr)
     local Instances = {}
 
 	for _, obj in getreg() do
-		if typeof(obj) == "function" and table.find(getfenv(obj), scr)  then
+		if obj and typeof_c(obj) == "function" and table.find(getfenv(obj), scr)  then
             return getfenv(obj)
 		end
 	end
@@ -524,7 +527,7 @@ getgenv_c().getrunningscripts = newcclosure_c(function()
     local scripts = {}
 
 	for _, obj in getreg() do
-		if typeof(obj) == "Instance" and obj:IsA("LocalScript") then
+		if obj and typeof_c(obj) == "Instance" and obj:IsA("LocalScript") then
             table.insert(scripts, obj)
 		end
 	end
