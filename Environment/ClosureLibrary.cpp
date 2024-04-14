@@ -334,16 +334,9 @@ int isourclosure(lua_State *L) {
     auto *cl = reinterpret_cast<Closure *>(const_cast<void *>(lua_topointer(L, 1)));
 
     if (cl->isC) {
-        if (NewCClosureHandler == cl->c.f) {
-            lua_pushboolean(L, true);
-        } else {
-            // Cheap solution for isourclosure without doing warcrimes..
-            lua_pushboolean(L, cl->c.debugname == nullptr);
-        }
+        lua_pushboolean(L, NewCClosureHandler == cl->c.f || (cl->c.debugname == nullptr || cl->c.debugname == 0));
     } else {
-        if (cl->l.p->linedefined == -1) {
-            lua_pushboolean(L, true);
-        }
+        lua_pushboolean(L, cl->l.p->linedefined == -1);
     }
     return 1;
 
