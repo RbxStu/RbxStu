@@ -346,15 +346,18 @@ void ClosureLibrary::RegisterEnvironment(lua_State *L) {
     static const luaL_Reg reg[] = {
             {oxorany_pchar(L"isourclosure"),      isourclosure},
             {oxorany_pchar(L"isexecutorclosure"), isourclosure},
+            {oxorany_pchar(L"checkclosure"), isourclosure},
 
             {oxorany_pchar(L"iscclosure"),        iscclosure},
             {oxorany_pchar(L"islclosure"),        islclosure},
+
             {oxorany_pchar(L"newcclosure"),       newcclosure},
             {oxorany_pchar(L"newlclosure"),       newlclosure},
 
             {oxorany_pchar(L"hookfunction"),      hookfunction},
             {oxorany_pchar(L"hookfunc"),          hookfunction},
             {oxorany_pchar(L"replaceclosure"),    hookfunction},
+
             {oxorany_pchar(L"clonefunction"),     clonefunction},
 
             {oxorany_pchar(L"loadstring"),        loadstring},
