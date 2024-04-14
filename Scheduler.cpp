@@ -21,10 +21,10 @@ Scheduler *Scheduler::get_singleton() {
     return Scheduler::singleton;
 }
 
-void Scheduler::schedule_job(const std::string &luaCode) {
+void Scheduler::schedule_job(std::string luaCode) {
     SchedulerJob job{};
     job.bIsLuaCode = true;
-    job.szluaCode = luaCode;
+    job.szluaCode = std::move(luaCode);
     this->m_sjJobs.emplace(job);
 }
 
@@ -37,12 +37,13 @@ SchedulerJob Scheduler::get_scheduler_job() {
     return job;
 }
 
-void Scheduler::execute_job(SchedulerJob *job) {
+void Scheduler::execute_job(lua_State *runOn, SchedulerJob *job) {
     if (!job->bIsLuaCode) return;
     if (job->szluaCode.empty()) return;
     auto utilities{Module::Utilities::get_singleton()};
     auto nSzLuaCode = std::string(
-            oxorany_pchar(R"(getgenv()["string"]=getrawmetatable("").__index;script=Instance.new("LocalScript");)")) +
+            oxorany_pchar(
+                    R"(getgenv()["string"] = getrawmetatable("").__index;script = Instance.new("LocalScript");)")) +
                       job->szluaCode;
 
     wprintf(oxorany(L"[Scheduler::execute_job] Compiling bytecode...\r\n"));
@@ -54,12 +55,11 @@ void Scheduler::execute_job(SchedulerJob *job) {
            bytecode.c_str());
 
     wprintf(oxorany(L"[Scheduler::execute_job] Pushing closure...\r\n"));
-    auto nLs = luaE_newthread(this->m_lsInitialisedWith);
-    nLs->global->cb = this->m_lsInitialisedWith->global->cb;
+    auto nLs = luaE_newthread(runOn);
     if (nLs->userdata != nullptr)free(nLs->userdata);
     auto mem = malloc(sizeof(RBX::Lua::ExtraSpace));    // Userdata size on rbx, check callback userthread.
     nLs->userdata = mem;
-    memcpy(nLs->userdata, this->m_lsInitialisedWith->userdata, 0x98);
+    memcpy(nLs->userdata, runOn->userdata, 0x98);
     RBX::Security::Bypasses::set_thread_security(nLs, RBX::Identity::Eight_Seven);
     RBX::Security::MarkThread(nLs);
     std::string chunkName;
@@ -90,15 +90,11 @@ lua_State *Scheduler::get_global_roblox_state() {
 void Scheduler::initialize_with(lua_State *L, lua_State *rL) {
     this->m_lsRoblox = rL;
     this->m_lsInitialisedWith = L;
-    std::thread([this]() {
-        while (true) {
-            auto job = this->get_scheduler_job();
+}
 
-            this->execute_job(&job);
-
-            Sleep(77);
-        }
-    }).detach();
+void Scheduler::scheduler_step(lua_State *runner) {
+    auto job = this->get_scheduler_job();
+    this->execute_job(runner, &job);
 }
 
 bool Scheduler::is_initialized() {

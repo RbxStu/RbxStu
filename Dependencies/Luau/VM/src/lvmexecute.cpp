@@ -2984,7 +2984,7 @@ exit:;
 
 void luau_execute(lua_State* L)
 {
-    // return RBX::Studio::Functions::luau_execute(L);
+    return RBX::Studio::Functions::luau_execute(L);
 
     if (L->singlestep)
         luau_execute<true>(L);

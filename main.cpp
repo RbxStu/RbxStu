@@ -134,31 +134,21 @@ int main(int argc, char **argv, char **envp) {
     wprintf(oxorany(L"[main] Initializing hook...\r\n"));
     auto hook{Hook::get_singleton()};
 
-    wprintf(oxorany(L"Attached to RBX::Studio::Lua::freeblock for call instrumentation and for anti-crashing.\r\n"));
     hook->initialize();
+    wprintf(oxorany(L"Attached to RBX::Studio::Lua::freeblock for call instrumentation and for anti-crashing.\r\n"));
     hook->install_additional_hooks();
     hook->install_hook();
     hook->wait_until_initialised();
-    hook->remove_hook();
-
-
-    /*
-        // Will crash, Offsets will be revised at a later date.
-        std::thread([]() {
-            auto *rbxScheduler = RBX::TaskScheduler::getSingleton();
-            while (true) {
-                Sleep(rbxScheduler->cycleInterval.sec);
-                printf("RBX Scheduler Tick!\r\n");
-            }
-        }).detach();
-     */
 
     wprintf(oxorany(L"[main] Hook initialized. State grabbed.\r\n"));
 
     wprintf(oxorany(L"[main] Initializing environment.\r\n"));
     auto scheduler{Scheduler::get_singleton()};
     auto environmentSingleton = Environment::GetSingleton();
+    wprintf(oxorany(L"[main] Attaching to RunService.Stepped for custom scheduler stepping.\r\n"));
     environmentSingleton->Register(scheduler->get_global_executor_state(), true);
+
+    hook->remove_hook();
     std::string str{};
 
     while (oxorany(true)) {
@@ -175,9 +165,10 @@ int main(int argc, char **argv, char **envp) {
             scheduler->re_initialize();
             hook->install_hook();
             hook->wait_until_initialised();
-            hook->remove_hook();
-
             environment->Register(scheduler->get_global_executor_state(), true);
+            wprintf(oxorany(L"Attaching to RunService.Heartbeat for custom scheduler stepping.\r\n"));
+            hook->complete_initialization();
+            hook->remove_hook();
 
             MessageBoxA(nullptr,
                         (
@@ -188,6 +179,7 @@ int main(int argc, char **argv, char **envp) {
         wprintf(oxorany(L"\r\nPushing to StudioExecutor::Scheduler...\r\n"));
         scheduler->schedule_job(str);
         Sleep(oxorany(2000));
+        // scheduler->scheduler_step(scheduler->get_global_executor_state());
     }
 
     return 0;

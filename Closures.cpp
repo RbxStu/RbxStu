@@ -47,13 +47,13 @@ static void set_proto(Proto *proto, uintptr_t *proto_identity) {
 
 const Closure *Module::Closures::CloneClosure(lua_State *L, Closure *cl) {
     if (cl->isC) {
-        Closure *newcl = luaF_newCclosure(L, cl->nupvalues + 1, cl->env);
+        Closure *newcl = luaF_newCclosure(L, cl->nupvalues, cl->env);
 
         if (cl->c.debugname != nullptr)
             newcl->c.debugname = (const char *) cl->c.debugname;
 
         for (int i = 0; i < cl->nupvalues; i++)
-            setobj2n(L, &newcl->c.upvals[i], &cl->c.upvals[i])
+                setobj2n (L, &newcl->c.upvals[i], &cl->c.upvals[i])
 
         newcl->c.f = (lua_CFunction) cl->c.f;
         newcl->c.cont = (lua_Continuation) cl->c.cont;
@@ -137,12 +137,17 @@ int NewCClosureHandler(lua_State *L) {
 
     lua_insert(L, 1);
 
-    if (const auto callResult = lua_pcall(L, argc, LUA_MULTRET, 0); callResult == LUA_YIELD &&
-                                                                    (0 == std::strcmp(
-                                                                            luaL_optstring(L, -1, oxorany_pchar(L"")),
-                                                                            oxorany_pchar(
-                                                                                    L"attempt to yield across metamethod/C-call boundary"))))
-        return lua_yield(L, 0);
+    __try{
+
+            if (const auto callResult = lua_pcall(L, argc, LUA_MULTRET, 0); callResult == LUA_YIELD &&
+            (0 == std::strcmp(
+            luaL_optstring(L, -1, oxorany_pchar(L"")),
+            oxorany_pchar(
+                    L"attempt to yield across metamethod/C-call boundary"))))
+            return lua_yield(L, LUA_MULTRET);
+    }
+    __except(EXCEPTION_CONTINUE_SEARCH)  // Insane exception handling.
+    {};
 
     return lua_gettop(L);
 }

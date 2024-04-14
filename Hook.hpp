@@ -36,5 +36,9 @@ public:
     [[nodiscard]] FunctionTypes::rFreeBlock get_freeblock_original();
 
     [[nodiscard]] FunctionTypes::pseudo2addr get_pseudo_original();
+
+    // Completes initialization of the schedulers' execution pipeline by
+    // Connecting into RunService.HeartBeat using Lua and executing our custom schedulers' C closure.
+    void complete_initialization();
 };
 

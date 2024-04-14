@@ -168,6 +168,7 @@ int httppost(lua_State *L) {
 }
 
 int httpget(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TSTRING);
     std::string targetUrl = lua_tostring(L, 1);
 
     if (lua_type(L, 1) != LUA_TSTRING) {
@@ -246,6 +247,7 @@ int setidentity(lua_State *L) {
 }
 
 int getrawmetatable(lua_State *L) {
+    luaL_checkany(L, 1);
     if (!lua_getmetatable(L, 1))
         lua_pushnil(L);
 
@@ -253,30 +255,35 @@ int getrawmetatable(lua_State *L) {
 }
 
 int setrawmetatable(lua_State *L) {
+    luaL_argexpected(L, lua_istable(L, 1) || lua_islightuserdata(L, 1) || lua_isuserdata(L, 1), 2,
+                     oxorany_pchar(L"table or userdata or lightuserdata"));
+
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_setmetatable(L, 1);
     return 0;
 }
 
 int setreadonly(lua_State *L) {
-    luaL_argexpected(L, lua_istable(L, 1), 1, oxorany_pchar(L"table"));
-    luaL_argexpected(L, lua_isboolean(L, 2), 2, oxorany_pchar(L"boolean"));
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_checktype(L, 2, LUA_TBOOLEAN);
     lua_setreadonly(L, 1, lua_toboolean(L, 2));
     return 1;
 }
 
 int isreadonly(lua_State *L) {
-    luaL_argexpected(L, lua_istable(L, 1), 1, oxorany_pchar(L"table"));
+    luaL_checktype(L, 1, LUA_TTABLE);
     lua_pushboolean(L, lua_getreadonly(L, 1));
     return 1;
 }
 
 int make_writeable(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
     lua_pushboolean(L, false);
     return setreadonly(L);
 }
 
 int make_readonly(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
     lua_pushboolean(L, true);
     return setreadonly(L);
 }
@@ -299,39 +306,30 @@ int identifyexecutor(lua_State *L) {
 }
 
 int hookmetamethod(lua_State *L) {  // Crashes on usage due to table related issues.
-    printf("typecheck\r\n");
     if (lua_type(L, 1) != LUA_TTABLE && lua_type(L, 1) != LUA_TUSERDATA) {
         luaL_typeerrorL(L, 1, oxorany_pchar("table or userdata"));
     }
 
-    printf("typecheck\r\n");
     luaL_checktype(L, 2, LUA_TSTRING);
-    printf("typecheck\r\n");
     luaL_checktype(L, 3, LUA_TFUNCTION);
 
-    printf("toptr 1\r\n");
     const auto *obj = static_cast<const lua_TValue *>(lua_topointer(L, 1));
     Table *mt;
 
-    printf("mt retrieval 1\r\n");
     if (lua_type(L, 1) == LUA_TTABLE)
         mt = hvalue(obj)->metatable;
     else
         mt = uvalue(obj)->metatable;
 
-    printf("mt ptr check\r\n");
     if (!mt)
         luaL_typeerrorL(L, 1, oxorany_pchar(L"table or userdata with a metatable."));
 
-    printf("mt name\r\n");
     const auto metamethodName = lua_tostring(L, 2);
 
-    printf("push mt to stktp, rawget\r\n");
     L->top->tt = LUA_TTABLE;
     L->top->value.p = static_cast<void *>(mt);
     L->top++;
     lua_getfield(L, -1, metamethodName);
-    printf("mm cl, rawget\r\n");
     const auto *metamethodCl = static_cast<const lua_TValue *>(lua_topointer(L, -1));
 
     if (metamethodCl->tt == LUA_TNIL)
@@ -362,41 +360,55 @@ int gettenv(lua_State *L) {
     return 1;
 }
 
+int gethui(lua_State *L) {
+    lua_getglobal(L, "game");
+    lua_getfield(L, -1, "CoreGui");
+    return 1;
+}
+
 int Environment::Register(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
-            {oxorany_pchar(L"getreg"),            getreg},
-            {oxorany_pchar(L"getgc"),             getgc},
-            {oxorany_pchar(L"getgenv"),           getgenv},
-            {oxorany_pchar(L"getrenv"),           getrenv},
-            {oxorany_pchar(L"checkcaller"),       checkcaller},
-            {oxorany_pchar(L"setidentity"),       setidentity},
-            {oxorany_pchar(L"getidentity"),       getidentity},
-            {oxorany_pchar(L"getrawmetatable"),   getrawmetatable},
-            {oxorany_pchar(L"setrawmetatable"),   setrawmetatable},
-            {oxorany_pchar(L"setreadonly"),       setreadonly},
-            {oxorany_pchar(L"isreadonly"),        isreadonly},
-            {oxorany_pchar(L"make_writeable"),    make_writeable},
-            {oxorany_pchar(L"make_readonly"),     make_readonly},
+            {oxorany_pchar(L"getreg"), getreg},
+            {oxorany_pchar(L"getgc"), getgc},
+            {oxorany_pchar(L"getgenv"), getgenv},
+            {oxorany_pchar(L"getrenv"), getrenv},
+            {oxorany_pchar(L"checkcaller"), checkcaller},
+            {oxorany_pchar(L"setidentity"), setidentity},
+            {oxorany_pchar(L"getidentity"), getidentity},
+            {oxorany_pchar(L"getrawmetatable"), getrawmetatable},
+            {oxorany_pchar(L"setrawmetatable"), setrawmetatable},
+            {oxorany_pchar(L"setreadonly"), setreadonly},
+            {oxorany_pchar(L"isreadonly"), isreadonly},
+            {oxorany_pchar(L"make_writeable"), make_writeable},
+            {oxorany_pchar(L"make_readonly"), make_readonly},
             {oxorany_pchar(L"getnamecallmethod"), getnamecallmethod},
 
-            {oxorany_pchar(L"identifyexecutor"),  identifyexecutor},
-            {oxorany_pchar(L"getexecutorname"),   identifyexecutor},
+            {oxorany_pchar(L"identifyexecutor"), identifyexecutor},
+            {oxorany_pchar(L"getexecutorname"), identifyexecutor},
 
 
-            {oxorany_pchar(L"consoleprint"),      consoleprint},
-            {oxorany_pchar(L"consolewarn"),       consolewarn},
-            {oxorany_pchar(L"consoleerror"),      consoleerror},
+            {oxorany_pchar(L"consoleprint"), consoleprint},
+            {oxorany_pchar(L"consolewarn"), consolewarn},
+            {oxorany_pchar(L"consoleerror"), consoleerror},
 
             // {oxorany_pchar(L"hookmetamethod"),    hookmetamethod},
 
-            {oxorany_pchar(L"gettenv"),           gettenv},
+            {oxorany_pchar(L"gettenv"), gettenv},
 
-            {oxorany_pchar(L"HttpGet"),           httpget},
-            {oxorany_pchar(L"HttpPost"),          httppost},
+            {oxorany_pchar(L"HttpGet"), httpget},
+            {oxorany_pchar(L"HttpPost"), httppost},
+            {oxorany_pchar(L"__SCHEDULER_STEPPED__HOOK"), (static_cast<lua_CFunction>([](lua_State *L) -> int {
+                auto *scheduler{Scheduler::get_singleton()};
+                if (scheduler->is_initialized()) {
+                    scheduler->scheduler_step(scheduler->get_global_executor_state());
+                }
+                return (0);
+            }))},
+            {oxorany_pchar(L"gethui"), gethui},
 
             // {oxorany_pchar(L"reinit"),            reinit},
 
-            {nullptr,                             nullptr},
+            {nullptr, nullptr},
     };
 
     lua_pushvalue(L, oxorany(LUA_GLOBALSINDEX));
@@ -423,7 +435,7 @@ local checkcaller_c = clonefunction(checkcaller)
 local game_getservice = clonefunction_c(game.GetService)
 local insertservice_LoadLocalAsset = clonefunction_c(game_getservice(game, "InsertService").LoadLocalAsset)
 local string_match = clonefunction_c(string.match)
-local string_tolower = clonefunction_c(string.lower)
+local string_lower = clonefunction_c(string.lower)
 local getgenv_c = clonefunction_c(getgenv)
 local getIdentity_c = clonefunction_c(getidentity)
 local setIdentity_c = clonefunction_c(setidentity)
@@ -438,7 +450,6 @@ local HttpGet_c = clonefunction_c(HttpGet)
 local select_c = clonefunction_c(select)
 local pairs_c = clonefunction_c(pairs)
 local typeof_c = clonefunction_c(typeof)
-local table_insert = clonefunction_c(table.insert)
 
 print("setting genv")
 getgenv_c().GetObjects = newcclosure_c(function(assetId)
@@ -449,6 +460,7 @@ getgenv_c().GetObjects = newcclosure_c(function(assetId)
 	return obj
 end)
 local GetObjects_c = clonefunction_c(getgenv_c().GetObjects)
+getgenv_c().getcustomasset = GetObjects_c
 
 getgenv_c().hookmetamethod = newcclosure_c(function(t, metamethod, fun)
 	local mt = getrawmetatable_c(t)
@@ -467,12 +479,13 @@ getgenv_c().require = newcclosure_c(function(moduleScript)
 	return r
 end)
 
+
 getgenv_c().getnilinstances = newcclosure_c(function()
 	local Instances = {}
 
 	for _, Object in getreg() do
-		if typeof_c(Object) == "Instance" and Object.Parent == nil then
-			table_insert(Instances, Object)
+		if typeof(Object) == "Instance" and Object.Parent == nil then
+			table.insert(Instances, Object)
 		end
 	end
 
@@ -483,13 +496,42 @@ getgenv_c().getinstances = newcclosure_c(function()
 	local Instances = {}
 
 	for _, obj in getreg() do
-		if typeof_c(obj) == "Instance" then
-			table_insert(Instances, obj)
+		if typeof(obj) == "Instance" then
+			table.insert(Instances, obj)
 		end
 	end
 
 	return Instances
 end)
+
+getgenv_c().getsenv = newcclosure_c(function(scr)
+    if typeof(scr) ~= "Instance" then
+        error("Expected script. Got ", typeof_c(script), " Instead.")
+    end
+
+    local Instances = {}
+
+	for _, obj in getreg() do
+		if typeof(obj) == "function" and table.find(getfenv(obj), scr)  then
+            return getfenv(obj)
+		end
+	end
+
+	return Instances
+end)
+
+getgenv_c().getrunningscripts = newcclosure_c(function()
+    local scripts = {}
+
+	for _, obj in getreg() do
+		if typeof(obj) == "Instance" and obj:IsA("LocalScript") then
+            table.insert(scripts, obj)
+		end
+	end
+
+	return scripts
+end)
+
 
 local illegal = {
 	"OpenVideosFolder",
@@ -509,82 +551,106 @@ local illegal = {
 }
 
 local oldNamecall
-oldNamecall = hookmetamethod_c(game, "__namecall", function(...)
-	if typeof(select_c(1, ...)) ~= "Instance" or not checkcaller_c() then
-		return oldNamecall(...)
-	end
-
-	local namecallName = (getnamecallmethod_c())
-
-	-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
-	-- Unacceptable.
-	for _, str in pairs_c(illegal) do
-        if string_match(string_lower(namecallName), string_lower(str)) then
-            print("Matched")
-			return error_c("This function has been disabled for security reasons.")
+oldNamecall = hookmetamethod_c(
+	game,
+	"__namecall",
+	newcclosure(function(...)
+		if typeof_c(select_c(1, ...)) ~= "Instance" or not checkcaller_c() then
+			return oldNamecall(...)
 		end
-	end
 
-	if idx == "HttpGetAsync" or idx == "HttpGet" then
-		return HttpGet_c(select_c(2, ...)) -- 1 self, 2 arg (url)
+		local namecallName = (getnamecallmethod_c())
 
-	end
+		-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
+		-- Unacceptable.
+		for _, str in pairs_c(illegal) do
+			if string_match(string_lower(namecallName), string_lower(str)) then
+				print("Matched")
+				return error_c("This function has been disabled for security reasons.")
+			end
+		end
 
-	if idx == "HttpPostAsync" or idx == "HttpPost" then
-		return HttpPost_c(select_c(2, ...)) -- 1 self, 2 arg (url)
+		if namecallName == "HttpGetAsync" or namecallName == "HttpGet" then
+			print("get nmcall")
+			return HttpGet_c(select_c(2, ...)) -- 1 self, 2 arg (url)
+		end
 
-	end
+		if namecallName == "HttpPostAsync" or namecallName == "HttpPost" then
+			print("post nmcall")
+			return HttpPost_c(select_c(2, ...)) -- 1 self, 2 arg (url)
+		end
 
-	if idx == "GetObjects" then
-		return GetObjects_c(select_c(2, ...)) -- 1 self, 2 arg (table/string)
+		if namecallName == "GetObjects" then
+			print("gobj nmcall")
+			local a = select_c(2, ...)
+			if typeof_c(a) ~= "table" and typeof_c(a) ~= "string" then
+				return {}
+			end
+			return GetObjects_c(a) -- 1 self, 2 arg (table/string)
+		end
 
-	end
-
-	return oldNamecall(...)
-end)
+		return oldNamecall(...)
+	end)
+)
 
 local oldIndex
-oldIndex = hookmetamethod_c(game, "__index", function(...)
-	if not checkcaller_c() then
-		return oldIndex(...)
-	end
-	if typeof(select_c(1, ...)) ~= "Instance" or typeof(select_c(2, ...)) ~= "string" then
-		return oldIndex(...)
-	end
-
-	local self = select_c(1, ...)
-	local idx = select_c(2, ...)
-
-	-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
-	-- Unacceptable.
-	for _, str in pairs(illegal) do
-        if string_match(idx, (str)) then
-            print("Matched")
-			return error_c("This function has been disabled for security reasons.")
+oldIndex = hookmetamethod_c(
+	game,
+	"__index",
+	newcclosure(function(...)
+		if not checkcaller_c() then
+			return oldIndex(...)
 		end
-	end
+		if typeof_c(select_c(1, ...)) ~= "Instance" or typeof_c(select_c(2, ...)) ~= "string" then
+			return oldIndex(...)
+		end
 
-	if idx == "HttpGetAsync" or idx == "HttpGet" then
-		return clonefunction_c(HttpGet_c)
-	end
+		local self = select_c(1, ...)
+		local idx = select_c(2, ...)
 
-	if idx == "HttpPostAsync" or idx == "HttpPost" then
-		return clonefunction_c(HttpPost_c)
-	end
+		-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
+		-- Unacceptable.
+		for _, str in pairs(illegal) do
+			if string_match(idx, str) then
+				print("Matched")
+				return error_c("This function has been disabled for security reasons.")
+			end
+		end
 
-	if idx == "GetObjects" then
-		return clonefunction_c(GetObjects_c)
-	end
+		if idx == "HttpGetAsync" or idx == "HttpGet" then
+			print("get idx")
+			return clonefunction_c(HttpGet_c)
+		end
 
-	return oldIndex(...)
-end)
+		if idx == "HttpPostAsync" or idx == "HttpPost" then
+			print("post idx")
+			return clonefunction_c(HttpPost_c)
+		end
+
+		if idx == "GetObjects" then
+			print("gobjs idx")
+			return clonefunction_c(GetObjects_c)
+		end
+
+		return oldIndex(...)
+	end)
+)
         )");
-        execution->lua_loadstring(L, str, utilities->RandomString(32),
-                                  static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(
-                                          static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
-        lua_pcall(L, 0, 0, 0);
+        //execution->lua_loadstring(L, str, utilities->RandomString(32),
+        //                          static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(
+        //                                  static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
+        //lua_pcall(L, 0, 0, 0);
         //RBX::Studio::Functions::rTask_defer(L);
-        //Scheduler::get_singleton()->schedule_job(str);
+        std::string hook = oxorany_pchar(LR"(
+            game:GetService("RunService").Stepped:Connect(function()
+                __SCHEDULER_STEPPED__HOOK()
+            end)
+        )");
+        Scheduler::get_singleton()->schedule_job(hook);
+        Scheduler::get_singleton()->scheduler_step(Scheduler::get_singleton()->get_global_executor_state());
+        Scheduler::get_singleton()->schedule_job(str);
+
+
         std::cout << oxorany_pchar(L"Init script queued.") << std::endl;
         Sleep(200);
     }

@@ -214,7 +214,7 @@ int hookfunction(lua_State *L) {
         for (int i = 0; i < hookWith->nupvalues; i++)
                 setobj2n (L, &toHook->c.upvals[i], &hookWith->c.upvals[i]);
 
-        toHook->nupvalues = hookWith->nupvalues;
+        // toHook->nupvalues = hookWith->nupvalues;
         toHook->c.f = NewCClosureHandler;    // Newcclosure handler.
         closures->AddWrappedClosure(toHook, original);
         return 1;

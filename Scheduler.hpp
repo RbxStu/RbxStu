@@ -30,16 +30,19 @@ public:
     static Scheduler *get_singleton();
     //#endregion Static Members
 
-    void execute_job(SchedulerJob *job);
+    void execute_job(lua_State *runOn, SchedulerJob *job);
 
-    void schedule_job(const std::string &luaCode);
+    void schedule_job(std::string luaCode);
 
     void initialize_with(lua_State *L, lua_State *rL);
 
     bool is_initialized();
 
     lua_State *get_global_executor_state();
+
     lua_State *get_global_roblox_state();
+
+    void scheduler_step(lua_State *runner);
 
     void re_initialize();
 };

@@ -144,9 +144,6 @@ namespace RBX {
         char _3C0[8];
         char _3C8[8];
 
-        static RBX::TaskScheduler *getSingleton() {
-            return static_cast<RBX::TaskScheduler *>(RBX::Studio::Functions::rRBX__TaskScheduler__getSingleton());
-        }
     };
 
 

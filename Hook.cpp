@@ -7,10 +7,12 @@
 #include <mutex>
 #include "Scheduler.hpp"
 #include "Security.hpp"
+#include "Execution.hpp"
 #include "lualib.h"
 #include "cstdlib"
 #include "ltable.h"
 #include "Utilities.hpp"
+#include "Closures.hpp"
 
 Hook *Hook::g_hookSingleton = nullptr;
 
@@ -140,7 +142,9 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         //auto L_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(L->userdata);
         //auto nL_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(nL->userdata);
         //nL_userdata->sharedExtraSpace = L_userdata->sharedExtraSpace;
+        luaL_sandboxthread(nL);
         scheduler->initialize_with(nL, rL);
+        lua_settop(L, oldTop);
     }
 
     mutx.unlock();
@@ -188,4 +192,8 @@ MH_STATUS Hook::install_additional_hooks() {
     MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::rFreeBlock), freeblock__detour,
                   reinterpret_cast<LPVOID *>(&this->__original__freeblock__hook));
     return MH_EnableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::rFreeBlock));
+}
+
+void Hook::complete_initialization() {
+
 }
