@@ -303,6 +303,14 @@ int getnamecallmethod(lua_State *L) {
     return 1;
 }
 
+int setnamecallmethod(lua_State *L) {
+    luaL_checkstring(L, 1);
+    if (L->namecall != nullptr)
+        L->namecall = &L->top->value.gc->ts;
+    return 0;
+}
+
+
 int identifyexecutor(lua_State *L) {
     lua_pushstring(L, oxorany_pchar(L"RbxStu"));
     lua_pushstring(L, oxorany_pchar(L"1.0.0"));
@@ -344,11 +352,8 @@ int hookmetamethod(lua_State *L) {  // Crashes on usage due to table related iss
     L->top++;                       // toHook
     lua_pushvalue(L, 3);            // hookWith
 
-    printf("hookf\r\n");
     lua_getglobal(L, oxorany_pchar(L"hookfunction"));
-    printf("lua_pcall\r\n");
     lua_pcall(L, 2, 1, 0);
-    printf("ret\r\n");
 
     return 1;
 }
@@ -365,42 +370,77 @@ int gettenv(lua_State *L) {
 }
 
 int gethui(lua_State *L) {
-    lua_getglobal(L, "game");
-    lua_getfield(L, -1, "CoreGui");
+    lua_getglobal(L, oxorany_pchar(L"game"));
+    lua_getfield(L, oxorany(-1), oxorany_pchar(L"CoreGui"));
+    return 1;
+}
+
+int isrbxactive(lua_State *L) {
+    char buf[0xff];
+    if (GetWindowTextA(GetForegroundWindow(), buf, sizeof(buf))) {
+        lua_pushboolean(L, strstr(buf, oxorany_pchar(L"Roblox Studio")) != nullptr);
+    } else {
+        lua_pushboolean(L, false);
+    }
+
+    return 1;
+}
+
+int isluau(lua_State *L) {
+    lua_pushboolean(L, true);
     return 1;
 }
 
 int Environment::Register(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
-            {oxorany_pchar(L"getreg"), getreg},
-            {oxorany_pchar(L"getgc"), getgc},
-            {oxorany_pchar(L"getgenv"), getgenv},
-            {oxorany_pchar(L"getrenv"), getrenv},
-            {oxorany_pchar(L"checkcaller"), checkcaller},
-            {oxorany_pchar(L"setidentity"), setidentity},
-            {oxorany_pchar(L"getidentity"), getidentity},
-            {oxorany_pchar(L"getrawmetatable"), getrawmetatable},
-            {oxorany_pchar(L"setrawmetatable"), setrawmetatable},
-            {oxorany_pchar(L"setreadonly"), setreadonly},
-            {oxorany_pchar(L"isreadonly"), isreadonly},
-            {oxorany_pchar(L"make_writeable"), make_writeable},
-            {oxorany_pchar(L"make_readonly"), make_readonly},
-            {oxorany_pchar(L"getnamecallmethod"), getnamecallmethod},
+            {oxorany_pchar(L"isluau"),                    isluau},
+            {oxorany_pchar(L"isrbxactive"),               isrbxactive},
 
-            {oxorany_pchar(L"identifyexecutor"), identifyexecutor},
-            {oxorany_pchar(L"getexecutorname"), identifyexecutor},
+            {oxorany_pchar(L"getreg"),                    getreg},
+            {oxorany_pchar(L"getgc"),                     getgc},
+
+            {oxorany_pchar(L"gettenv"),                   gettenv},
+            {oxorany_pchar(L"getgenv"),                   getgenv},
+            {oxorany_pchar(L"getrenv"),                   getrenv},
+
+            {oxorany_pchar(L"checkcaller"),               checkcaller},
+
+            {oxorany_pchar(L"setidentity"),               setidentity},
+            {oxorany_pchar(L"setthreadidentity"),         setidentity},
+            {oxorany_pchar(L"setthreadcontext"),          setidentity},
+
+            {oxorany_pchar(L"getidentity"),               getidentity},
+            {oxorany_pchar(L"getthreadidentity"),         getidentity},
+            {oxorany_pchar(L"getthreadcontext"),          getidentity},
+
+            {oxorany_pchar(L"getrawmetatable"),           getrawmetatable},
+            {oxorany_pchar(L"setrawmetatable"),           setrawmetatable},
+
+            {oxorany_pchar(L"setreadonly"),               setreadonly},
+            {oxorany_pchar(L"isreadonly"),                isreadonly},
+            {oxorany_pchar(L"make_writeable"),            make_writeable},
+            {oxorany_pchar(L"make_readonly"),             make_readonly},
+
+            {oxorany_pchar(L"getnamecallmethod"),         getnamecallmethod},
+            {oxorany_pchar(L"setnamecallmethod"),         setnamecallmethod},
+
+            {oxorany_pchar(L"identifyexecutor"),          identifyexecutor},
+            {oxorany_pchar(L"getexecutorname"),           identifyexecutor},
 
 
-            {oxorany_pchar(L"consoleprint"), consoleprint},
-            {oxorany_pchar(L"consolewarn"), consolewarn},
-            {oxorany_pchar(L"consoleerror"), consoleerror},
+            {oxorany_pchar(L"consoleprint"),              consoleprint},
+            {oxorany_pchar(L"rconsoleprint"),             consoleprint},
+            {oxorany_pchar(L"consolewarn"),               consolewarn},
+            {oxorany_pchar(L"rconsolewarn"),              consolewarn},
+            {oxorany_pchar(L"consoleerror"),              consoleerror},
+            {oxorany_pchar(L"rconsoleerror"),             consoleerror},
+            {oxorany_pchar(L"isrbxactive"),               isrbxactive},
+            {oxorany_pchar(L"isgameactive"),              isrbxactive},
 
             // {oxorany_pchar(L"hookmetamethod"),    hookmetamethod},
+            {oxorany_pchar(L"HttpGet"),                   httpget},
+            {oxorany_pchar(L"HttpPost"),                  httppost},
 
-            {oxorany_pchar(L"gettenv"), gettenv},
-
-            {oxorany_pchar(L"HttpGet"), httpget},
-            {oxorany_pchar(L"HttpPost"), httppost},
             {oxorany_pchar(L"__SCHEDULER_STEPPED__HOOK"), (static_cast<lua_CFunction>([](lua_State *L) -> int {
                 auto *scheduler{Scheduler::get_singleton()};
                 if (scheduler->is_initialized()) {
@@ -408,11 +448,12 @@ int Environment::Register(lua_State *L, bool useInitScript) {
                 }
                 return (0);
             }))},
-            {oxorany_pchar(L"gethui"), gethui},
+
+            {oxorany_pchar(L"gethui"),                    gethui},
 
             // {oxorany_pchar(L"reinit"),            reinit},
 
-            {nullptr, nullptr},
+            {nullptr,                                     nullptr},
     };
 
     lua_pushvalue(L, oxorany(LUA_GLOBALSINDEX));
