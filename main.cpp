@@ -135,7 +135,7 @@ int main(int argc, char **argv, char **envp) {
     auto hook{Hook::get_singleton()};
 
     hook->initialize();
-    wprintf(oxorany(L"Attached to RBX::Studio::Lua::freeblock for call instrumentation and for anti-crashing.\r\n"));
+    wprintf(oxorany(L"[main] Attached to RBX::Studio::Lua::freeblock for call instrumentation and for anti-crashing.\r\n"));
     hook->install_additional_hooks();
     hook->install_hook();
     hook->wait_until_initialised();
@@ -155,9 +155,9 @@ int main(int argc, char **argv, char **envp) {
         str.clear();
         wprintf(oxorany(L"\r\n[main] Input lua code: "));
         getline(std::cin, str);
-        if (strcmp(str.c_str(), "reinit()") == 0) {
-            wprintf(oxorany(L"Detected reinitialization request! Re-Initializing...\r\n"));
-            wprintf(oxorany(L"Running re-init...\r\n"));
+        if (strcmp(str.c_str(), oxorany_pchar(L"reinit()")) == 0) {
+            wprintf(oxorany(L"[main::reinit] Detected reinitialization request! Re-Initializing...\r\n"));
+            wprintf(oxorany(L"[main::reinit] Running re-init...\r\n"));
             auto hook = Hook::get_singleton();
             auto scheduler = Scheduler::get_singleton();
             auto environment = Environment::GetSingleton();

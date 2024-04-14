@@ -65,7 +65,7 @@ void Scheduler::execute_job(lua_State *runOn, SchedulerJob *job) {
     std::string chunkName;
     if (chunkName.empty()) chunkName = utilities->RandomString(32);
     if (luau_load(nLs, chunkName.c_str(), bytecode.c_str(), bytecode.size(), 0) != 0) {
-        wprintf(oxorany(L"Failed to load bytecode!\r\n"));
+        wprintf(oxorany(L"[Scheduler::execute_job] Failed to load bytecode!\r\n"));
         printf(oxorany_pchar(L"%s"), lua_tostring(nLs, -1));
         wprintf(oxorany(L"\r\n"));
         return;
