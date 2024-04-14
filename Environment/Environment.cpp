@@ -470,11 +470,9 @@ int Environment::Register(lua_State *L, bool useInitScript) {
 
     if (useInitScript) {
         std::cout << oxorany_pchar(L"Running init script...") << std::endl;
-        auto execution{Execution::GetSingleton()};
-        auto utilities{Module::Utilities::get_singleton()};
 
         // Initialize execution,
-        std::string str = (R"(
+        std::string str = oxorany_pchar(LR"(
 local clonefunction_c = clonefunction(clonefunction)
 local checkcaller_c = clonefunction(checkcaller)
 local game_getservice = clonefunction_c(game.GetService)
@@ -609,23 +607,19 @@ oldNamecall = hookmetamethod_c(
 		-- Unacceptable.
 		for _, str in pairs_c(illegal) do
 			if string_match(string_lower(namecallName), string_lower(str)) then
-				print("Matched")
-				return error_c("This function has been disabled for security reasons.")
+				return ("This function has been disabled for security reasons.")
 			end
 		end
 
 		if namecallName == "HttpGetAsync" or namecallName == "HttpGet" then
-			print("get nmcall")
 			return HttpGet_c(select_c(2, ...)) -- 1 self, 2 arg (url)
 		end
 
 		if namecallName == "HttpPostAsync" or namecallName == "HttpPost" then
-			print("post nmcall")
 			return HttpPost_c(select_c(2, ...)) -- 1 self, 2 arg (url)
 		end
 
 		if namecallName == "GetObjects" then
-			print("gobj nmcall")
 			local a = select_c(2, ...)
 			if typeof_c(a) ~= "table" and typeof_c(a) ~= "string" then
 				return {}
@@ -656,23 +650,19 @@ oldIndex = hookmetamethod_c(
 		-- Unacceptable.
 		for _, str in pairs(illegal) do
 			if string_match(idx, str) then
-				print("Matched")
-				return error_c("This function has been disabled for security reasons.")
+				return ("This function has been disabled for security reasons.")
 			end
 		end
 
 		if idx == "HttpGetAsync" or idx == "HttpGet" then
-			print("get idx")
 			return clonefunction_c(HttpGet_c)
 		end
 
 		if idx == "HttpPostAsync" or idx == "HttpPost" then
-			print("post idx")
 			return clonefunction_c(HttpPost_c)
 		end
 
 		if idx == "GetObjects" then
-			print("gobjs idx")
 			return clonefunction_c(GetObjects_c)
 		end
 
