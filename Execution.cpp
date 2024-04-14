@@ -21,10 +21,10 @@ Execution *Execution::GetSingleton() {
 
 std::string Execution::Compile(const std::string &code) {
     auto opts = Luau::CompileOptions{};
-    opts.debugLevel = 1;
+    opts.debugLevel = 2;
     opts.optimizationLevel = 2;
-    const char *mutableGlobals[] = {"_G", nullptr};
-    opts.mutableGlobals = mutableGlobals;
+    // const char *mutableGlobals[] = {"_G", nullptr};
+    // opts.mutableGlobals = mutableGlobals;
     return Luau::compile(code, opts);
 }
 
