@@ -142,7 +142,8 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         //auto L_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(L->userdata);
         //auto nL_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(nL->userdata);
         //nL_userdata->sharedExtraSpace = L_userdata->sharedExtraSpace;
-        luaL_sandboxthread(nL);
+        lua_newtable(L);
+        lua_setglobal(nL, "_G");
         scheduler->initialize_with(nL, rL);
         lua_settop(L, oldTop);
     }
