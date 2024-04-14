@@ -68,7 +68,7 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         wprintf(oxorany(L"Attempting to initialize scheduler... \n"));
 
         if (L->singlestep) {
-            printf("Not eligible at all. Singlestep detected.\r\n");
+            wprintf(oxorany(L"Not eligible at all. Singlestep detected.\r\n"));
             tries++;
             mutx.unlock();
             return Hook::get_singleton()->get_pseudo_original()(L, idx);
@@ -143,7 +143,7 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         //auto nL_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(nL->userdata);
         //nL_userdata->sharedExtraSpace = L_userdata->sharedExtraSpace;
         lua_newtable(L);
-        lua_setglobal(nL, "_G");
+        lua_setglobal(nL, oxorany_pchar(L"_G"));
         scheduler->initialize_with(nL, rL);
         lua_settop(L, oldTop);
     }
