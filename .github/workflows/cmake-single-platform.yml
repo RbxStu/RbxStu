@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Setup Ninja
-        uses: SecondNewtonLaw/setup-ninja@v1.4
+        uses: SecondNewtonLaw/setup-ninja@v1.5
         with:
           version: 1.10.0
           platform: win
