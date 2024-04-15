@@ -42,7 +42,7 @@ long long tries = 0;
 void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
     mutx.lock();
     auto scheduler{Scheduler::get_singleton()};
-    if (!scheduler->is_initialized()) {  // Randomness for more entropy when getting lua_State*, helped get a valid state faster.
+    if (!scheduler->is_initialized() && rand() % 0xff == 0) {  // Randomness for more entropy when getting lua_State*, helped get a valid state faster.
         auto ignoreChecks = false;
         char buf[(0xff)];
 
