@@ -3,6 +3,8 @@
 name: CMake on a single platform
 
 on:
+  workflow_dispatch:
+    branches: [ "dev" ]
   push:
     branches: [ "dev" ]
   pull_request:
