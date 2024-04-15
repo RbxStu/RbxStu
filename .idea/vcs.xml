@@ -2,13 +2,9 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cmake-build-debug/_deps/backward-src" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/cmake-build-debug/_deps/zlib-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cmake-build-minsizerel/_deps/backward-src" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/cmake-build-minsizerel/_deps/zlib-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cmake-build-release/_deps/backward-src" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/cmake-build-release/_deps/zlib-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cmake-build-relwithdebinfo/_deps/backward-src" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/cmake-build-relwithdebinfo/_deps/zlib-src" vcs="Git" />
   </component>
 </project>

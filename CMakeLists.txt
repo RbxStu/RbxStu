@@ -18,7 +18,7 @@ add_library(Module SHARED
         Scheduler.cpp
         Security.cpp
         Hook.cpp
-        RBXScheduler.cpp
+        # RBXScheduler.cpp
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Dependencies")
