@@ -3,7 +3,6 @@ include(FetchContent)
 project(Module)
 
 add_definitions(-DLUAI_GCMETRICS)   # Force GC metrics on Luau.
-set(CURL_ZLIB AUTO)
 set(BUILD_SHARED_LIBS OFF)
 set(PROJECT_NAME Module)
 set(CMAKE_CXX_STANDARD 23)
@@ -21,6 +20,9 @@ add_library(Module SHARED
         Scheduler.cpp
         Security.cpp
         Hook.cpp
+        Environment/WebsocketLibrary.cpp
+        Environment/WebsocketLibrary.hpp
+        Environment/WebsocketLibrary.hpp
         # RBXScheduler.cpp
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

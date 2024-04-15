@@ -233,9 +233,9 @@ if (USE_TLS)
   endif()
 endif()
 
-
-##option(USE_ZLIB "Enable zlib support")
+# option(USE_ZLIB "Enable zlib support" OFF)
 set(USE_ZLIB OFF)
+
 if (USE_ZLIB)
   find_package(ZLIB REQUIRED)
   target_link_libraries(ixwebsocket PRIVATE ZLIB::ZLIB)
