@@ -175,12 +175,6 @@ int httpget(lua_State *L) {
     luaL_checktype(L, 1, LUA_TSTRING);
     std::string targetUrl = lua_tostring(L, 1);
 
-    if (lua_type(L, 1) != LUA_TSTRING) {
-        luaG_runerror(L, (std::string(
-                oxorany_pchar(L"Wrong parameters given to httpget. Expected string at parameter #1, got ")) +
-                          lua_typename(L, lua_type(L, 1))).c_str());
-    }
-
     if (targetUrl.find(oxorany_pchar(L"http://")) != 0 && targetUrl.find(oxorany_pchar(L"https://")) != 0) {
         luaG_runerror(L, oxorany_pchar(L"Invalid protocol (expected 'http://' or 'https://')"));
     }
