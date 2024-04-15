@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.26)
+include(FetchContent)
 project(Module)
 
 add_definitions(-DLUAI_GCMETRICS)   # Force GC metrics on Luau.
+set(CURL_ZLIB AUTO)
+set(BUILD_SHARED_LIBS OFF)
 set(PROJECT_NAME Module)
 set(CMAKE_CXX_STANDARD 23)
 
@@ -24,8 +27,6 @@ target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Dependencies")
 # Dependencies
 
-
-include(FetchContent)
 
 # Curl For People
 # FetchContent_Declare(cpr GIT_REPOSITORY https://github.com/libcpr/cpr.git
@@ -52,6 +53,9 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Dependencies/Imgui")
 # oxorany
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Dependencies/oxorany")
 
+# IXWebSocket
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Dependencies/IXWebSocket")
+
 target_link_libraries(${PROJECT_NAME}
         PRIVATE
         # minhook
@@ -73,5 +77,7 @@ target_link_libraries(${PROJECT_NAME}
         oxorany
 
         Dbghelp.lib
+
+        ixwebsocket
 )
 
