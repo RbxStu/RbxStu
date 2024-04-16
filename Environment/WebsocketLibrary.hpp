@@ -3,10 +3,48 @@
 //
 #pragma once
 
-
 #include "EnvironmentLibrary.hpp"
+#include <string>
+#include <ixwebsocket/IXWebSocket.h>
+#include <ixwebsocket/IXWebSocketMessageType.h>
+
+class Websocket {
+
+
+    static int __index(lua_State *L);
+
+    static int close(lua_State *L);
+
+    static int send(lua_State *L);
+
+public:
+    Websocket *pSocketUserdata;      // Self (as ud).
+    ix::WebSocket *pWebSocket;
+
+    lua_State *pLuaThread;
+    long pLuaThreadRef;
+
+    struct {
+        long onClose_ref;
+        long onMessage_ref;
+        long onError_ref;
+    } EventReferences;
+
+    Websocket() {
+        pWebSocket = new ix::WebSocket{};
+        EventReferences = {-1, -1, -1};
+
+        pSocketUserdata = nullptr;
+        pLuaThread = nullptr;
+        pLuaThreadRef = -1;
+    }
+
+    bool initialize_socket(lua_State *origin);
+
+    bool try_connect_websocket(const std::string &url);
+};
 
 class WebsocketLibrary : public EnvironmentLibrary {
 public:
-    virtual void RegisterEnvironment(lua_State *L) override;
+    void RegisterEnvironment(lua_State *L) override;
 };

@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.26)
-include(FetchContent)
 project(Module)
 
 add_definitions(-DLUAI_GCMETRICS)   # Force GC metrics on Luau.
@@ -21,8 +20,6 @@ add_library(Module SHARED
         Security.cpp
         Hook.cpp
         Environment/WebsocketLibrary.cpp
-        Environment/WebsocketLibrary.hpp
-        Environment/WebsocketLibrary.hpp
         # RBXScheduler.cpp
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

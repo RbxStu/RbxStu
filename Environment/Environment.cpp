@@ -8,6 +8,7 @@
 #include "Dependencies/cpr/include/cpr/cpr.h"
 #include "Dependencies/HttpStatus.hpp"
 #include "Utilities.hpp"
+#include "WebsocketLibrary.hpp"
 #include "oxorany.hpp"
 #include "Closures.hpp"
 
@@ -455,18 +456,22 @@ int Environment::Register(lua_State *L, bool useInitScript) {
     lua_pop(L, 1);
 
     auto closuresLibrary = ClosureLibrary{};
-    std::cout << oxorany_pchar(L"Registering Closure Library") << std::endl;
+    std::cout << ("Registering Closure Library") << std::endl;
     closuresLibrary.RegisterEnvironment(L);
 
     auto debugLibrary = DebugLibrary{};
-    std::cout << oxorany_pchar(L"Registering Debug Library") << std::endl;
+    std::cout << ("Registering Debug Library") << std::endl;
     debugLibrary.RegisterEnvironment(L);
 
+    auto websocketsLibrary = WebsocketLibrary{};
+    std::cout << ("Registering Websocket Library") << std::endl;
+    websocketsLibrary.RegisterEnvironment(L);
+
     if (useInitScript) {
-        std::cout << oxorany_pchar(L"Running init script...") << std::endl;
+        std::cout << ("Running init script...") << std::endl;
 
         // Initialize execution,
-        std::string str = oxorany_pchar(LR"(
+        std::string str = (R"(
 local clonefunction_c = clonefunction(clonefunction)
 local checkcaller_c = clonefunction(checkcaller)
 local game_getservice = clonefunction_c(game.GetService)
