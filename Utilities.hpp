@@ -6,7 +6,7 @@
 #include <sstream>
 #include <oxorany.hpp>
 
-#define oxorany_pchar(wstr) (Module::Utilities::get_singleton()->ToChar(oxorany(wstr)))
+#define oxorany_pchar(wstr) (Module::Utilities::get_singleton()->ToChar((wstr)))    // Oxorany has been removed.
 
 namespace Module {
     class Utilities {

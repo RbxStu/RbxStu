@@ -42,7 +42,7 @@ void Scheduler::execute_job(lua_State *runOn, SchedulerJob *job) {
     if (job->szluaCode.empty()) return;
     auto utilities{Module::Utilities::get_singleton()};
     auto nSzLuaCode = std::string(
-            oxorany_pchar(
+            (
                     R"(getgenv()["string"] = getrawmetatable("").__index;script = Instance.new("LocalScript");)")) +
                       job->szluaCode;
 
