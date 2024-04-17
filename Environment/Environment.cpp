@@ -42,10 +42,7 @@ int getreg(lua_State *L) {
 }
 
 int getgenv(lua_State *L) {
-    auto scheduler{Scheduler::get_singleton()};
-    lua_State *gL = scheduler->get_global_executor_state();
-    lua_pushvalue(gL, LUA_GLOBALSINDEX);
-    lua_xmove(gL, L, 1);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
     return 1;
 }
 
@@ -225,7 +222,7 @@ int setidentity(lua_State *L) {
     auto newIdentity = luaL_optinteger(L, -1, oxorany(8));
 
     if (newIdentity > oxorany(9) || newIdentity < oxorany(0)) {
-        luaG_runerrorL(L, oxorany_pchar("You may not set your identity below 0 or above 9."));
+        luaG_runerrorL(L, ("You may not set your identity below 0 or above 9."));
     }
 
     // The identity seems to be consulted on the L->mainthread. Due to this, we may need to keep two lua states running. One originating from an elevated one, and one originated from a non elevated one.
@@ -314,7 +311,7 @@ int identifyexecutor(lua_State *L) {
 
 int hookmetamethod(lua_State *L) {  // Crashes on usage due to table related issues.
     if (lua_type(L, 1) != LUA_TTABLE && lua_type(L, 1) != LUA_TUSERDATA) {
-        luaL_typeerrorL(L, 1, oxorany_pchar("table or userdata"));
+        luaL_typeerrorL(L, 1, ("table or userdata"));
     }
 
     luaL_checktype(L, 2, LUA_TSTRING);
@@ -454,6 +451,10 @@ int Environment::Register(lua_State *L, bool useInitScript) {
     lua_pushvalue(L, oxorany(LUA_GLOBALSINDEX));
     luaL_register(L, nullptr, reg);
     lua_pop(L, 1);
+
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_setfield(L, -2, "_G");
 
     auto closuresLibrary = ClosureLibrary{};
     std::cout << ("Registering Closure Library") << std::endl;
@@ -674,7 +675,7 @@ oldIndex = hookmetamethod_c(
         //                                  static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
         //lua_pcall(L, 0, 0, 0);
         //RBX::Studio::Functions::rTask_defer(L);
-        std::string hook = oxorany_pchar(LR"(
+        std::string hook = (R"(
             game:GetService("RunService").Stepped:Connect(function()
                 __SCHEDULER_STEPPED__HOOK()
             end)
@@ -684,7 +685,7 @@ oldIndex = hookmetamethod_c(
         Scheduler::get_singleton()->schedule_job(str);
 
 
-        std::cout << oxorany_pchar(L"Init script queued.") << std::endl;
+        std::cout << ("Init script queued.") << std::endl;
         Sleep(200);
     }
 
