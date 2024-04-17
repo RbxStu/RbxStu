@@ -121,33 +121,32 @@ void Module::Closures::ToCClosure(lua_State *L, int idx) {
 }
 
 int NewCClosureHandler(lua_State *L) {
-    auto argc = lua_gettop(L);
+    const auto argc = lua_gettop(L);
     auto closures{Module::Closures::GetSingleton()};
 
     // Get og closure out of map from this newcclosure closure object.
     // then get the Value and thats the closure we gotta invoke.
     Closure *realClosure = closures->FindWrappedClosure(clvalue(L->ci->func));
 
-    if (realClosure == nullptr)
+    if (realClosure == nullptr) {
+        printf("Failed to execute newcclosure handler: Real closure not found.\r\n");
         return 0;   // Failed to map, shit.
+    }
 
+    luaC_threadbarrier(L);
     L->top->value.p = realClosure;
     L->top->tt = LUA_TFUNCTION;
     L->top++;                       // Increase top
 
     lua_insert(L, 1);
 
-    __try{
 
-            if (const auto callResult = lua_pcall(L, argc, LUA_MULTRET, 0); callResult == LUA_YIELD &&
-            (0 == std::strcmp(
-            luaL_optstring(L, -1, oxorany_pchar(L"")),
-            oxorany_pchar(
-                    L"attempt to yield across metamethod/C-call boundary"))))
-            return lua_yield(L, LUA_MULTRET);
-    }
-    __except(EXCEPTION_CONTINUE_SEARCH)  // Insane exception handling.
-    {};
+    if (const auto callResult = lua_pcall(L, argc, LUA_MULTRET, 0); callResult == LUA_YIELD &&
+                                                                    (0 == std::strcmp(
+                                                                            luaL_optstring(L, -1, oxorany_pchar(L"")),
+                                                                            oxorany_pchar(
+                                                                                    L"attempt to yield across metamethod/C-call boundary"))))
+        return lua_yield(L, LUA_MULTRET);
 
     return lua_gettop(L);
 }
