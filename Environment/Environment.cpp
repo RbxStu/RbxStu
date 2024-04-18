@@ -163,9 +163,9 @@ int httppost(lua_State *L) {
     const auto *contentType = lua_tostring(L, 4);
 
     auto response = cpr::Post(cpr::Url{targetUrl}, cpr::Body{postData},
-                              cpr::Header{{oxorany_pchar(L"Content-Type"), contentType}});
-    std::string data2(response.text.begin(), response.text.end());
-    lua_pushlstring(L, data2.c_str(), data2.size());
+                              cpr::Header{{("Content-Type"), contentType},
+                                          {("User-Agent"), ("Roblox/WinInet")}});
+    lua_pushlstring(L, response.text.c_str(), response.text.size());
     return 1;
 }
 
@@ -252,7 +252,7 @@ int getrawmetatable(lua_State *L) {
 
 int setrawmetatable(lua_State *L) {
     luaL_argexpected(L, lua_istable(L, 1) || lua_islightuserdata(L, 1) || lua_isuserdata(L, 1), 2,
-                     oxorany_pchar(L"table or userdata or lightuserdata"));
+                     ("table or userdata or lightuserdata"));
 
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_setmetatable(L, 1);
