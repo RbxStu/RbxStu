@@ -1,14 +1,14 @@
 //
 // Created by Dottik on 25/11/2023.
 //
-#include <lua.h>
-#include <string>
-#include <oxorany.hpp>
-#include <Utilities.hpp>
-#include <Closures.hpp>
-#include <lobject.h>
-#include <lgc.h>
 #include "ClosureLibrary.hpp"
+#include <Closures.hpp>
+#include <Utilities.hpp>
+#include <lgc.h>
+#include <lobject.h>
+#include <lua.h>
+#include <oxorany.hpp>
+#include <string>
 #include "Execution.hpp"
 
 
@@ -63,6 +63,10 @@ int hookfunction(lua_State *L) {
     auto *hookWith = lua_toclosure(L, 2);
     const auto hookWithUpvalues = hookWith->nupvalues;
 
+    // Strip some data from the proto to prevent detections on hooks.
+    if (!hookWith->isC)
+        RBX::Security::Bypasses::wipe_proto(hookWith);
+
     // L->L
     if (!toHook->isC && !hookWith->isC) {
         lua_clonefunction(L, 1); // Clone original LClosure
@@ -72,7 +76,7 @@ int hookfunction(lua_State *L) {
         toHook->preload = hookWith->preload;
 
         for (int i = 0; i < hookWithUpvalues; i++)
-        // Set urfs
+            // Set urfs
             setobj2n(L, &toHook->l.uprefs[i], &hookWith->l.uprefs[i]);
 
         toHook->nupvalues = hookWith->nupvalues;
@@ -83,7 +87,8 @@ int hookfunction(lua_State *L) {
 
     // NC->NC
     if (closures->IsCClosureHandler(toHook) && closures->IsCClosureHandler(hookWith)) {
-        // In this case we want to duplicate our original newcclosure handler for cloning, after which we manipulate the toHook with our hookWith->c.f.
+        // In this case we want to duplicate our original newcclosure handler for cloning, after which we manipulate the
+        // toHook with our hookWith->c.f.
         auto originalWrapped = closures->FindWrappedClosure(toHook);
         L->top->tt = LUA_TFUNCTION;
         L->top->value.p = originalWrapped;
@@ -129,7 +134,7 @@ int hookfunction(lua_State *L) {
         toHook->preload = hookWith->preload;
 
         for (int i = 0; i < hookWithUpvalues; i++)
-        // Set urfs
+            // Set urfs
             setobj2n(L, &toHook->l.uprefs[i], &hookWith->l.uprefs[i]);
 
         toHook->nupvalues = hookWith->nupvalues;
@@ -152,7 +157,7 @@ int hookfunction(lua_State *L) {
         toHook->preload = hookWith->preload;
 
         for (int i = 0; i < hookWithUpvalues; i++)
-        // Set urfs
+            // Set urfs
             setobj2n(L, &toHook->l.uprefs[i], &hookWith->l.uprefs[i]);
 
         toHook->nupvalues = hookWith->nupvalues;
@@ -243,14 +248,12 @@ int loadstring(lua_State *L) {
     }
 
 
-    return execution->lua_loadstring(L, scriptText,
-                                     chunkName,
-                                     RBX::Identity::Eight_Seven);
+    return execution->lua_loadstring(L, scriptText, chunkName, RBX::Identity::Eight_Seven);
     // Return the Execution implementation of the custom luau_loadstring.
 }
 
 int clonefunction(lua_State *L) {
-    //TODO: Implement
+    // TODO: Implement
     luaL_checktype(L, 1, LUA_TFUNCTION);
     const auto closures{Module::Closures::GetSingleton()};
     const auto newClosure = closures->CloneClosure(L, static_cast<Closure *>(const_cast<void *>(lua_topointer(L, -1))));
@@ -274,27 +277,27 @@ int isourclosure(lua_State *L) {
 
 void ClosureLibrary::register_environment(lua_State *L) {
     static const luaL_Reg reg[] = {
-        {"isourclosure", isourclosure},
-        {"isexecutorclosure", isourclosure},
-        {"checkclosure", isourclosure},
+            {"isourclosure", isourclosure},
+            {"isexecutorclosure", isourclosure},
+            {"checkclosure", isourclosure},
 
-        {"iscclosure", iscclosure},
-        {"islclosure", islclosure},
+            {"iscclosure", iscclosure},
+            {"islclosure", islclosure},
 
-        {"newcclosure", newcclosure},
-        {"newlclosure", newlclosure},
+            {"newcclosure", newcclosure},
+            {"newlclosure", newlclosure},
 
-        {"hookfunction", hookfunction},
-        {"hookfunc", hookfunction},
-        {"replaceclosure", hookfunction},
+            {"hookfunction", hookfunction},
+            {"hookfunc", hookfunction},
+            {"replaceclosure", hookfunction},
 
-        {"clonefunction", clonefunction},
+            {"clonefunction", clonefunction},
 
-        {"loadstring", loadstring},
-        {"pushstring", loadstring},
-        {"compile", loadstring},
+            {"loadstring", loadstring},
+            {"pushstring", loadstring},
+            {"compile", loadstring},
 
-        {nullptr, nullptr},
+            {nullptr, nullptr},
     };
 
     lua_pushvalue(L, LUA_GLOBALSINDEX);

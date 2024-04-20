@@ -5,14 +5,14 @@
 #include "Hook.hpp"
 #include <lstate.h>
 #include <mutex>
+#include "Closures.hpp"
+#include "Execution.hpp"
 #include "Scheduler.hpp"
 #include "Security.hpp"
-#include "Execution.hpp"
-#include "lualib.h"
+#include "Utilities.hpp"
 #include "cstdlib"
 #include "ltable.h"
-#include "Utilities.hpp"
-#include "Closures.hpp"
+#include "lualib.h"
 
 Hook *Hook::g_hookSingleton = nullptr;
 
@@ -27,8 +27,8 @@ void Hook::freeblock__detour(lua_State *L, int32_t sizeClass, void *block) {
         wprintf(L"*(block - 8): 0x%p\r\n", *reinterpret_cast<uintptr_t *>(reinterpret_cast<std::uintptr_t>(block) - 8));
         wprintf(L"\r\n\r\n--- END CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n");
 
-        wprintf(
-            L"\r\nIN ORDER TO AVOID A CRASH. THIS CALL HAS BEEN OMITTED DUE TO BLOCK APPEARING TO BE A STACK ADDRESS! POSSIBLE MEMORY LEAK MAY INSUE!\r\n");
+        wprintf(L"\r\nIN ORDER TO AVOID A CRASH. THIS CALL HAS BEEN OMITTED DUE TO BLOCK APPEARING TO BE A STACK "
+                L"ADDRESS! POSSIBLE MEMORY LEAK MAY INSUE!\r\n");
 
         return;
     }
@@ -49,19 +49,18 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         char buf[(0xff)];
 
         if (tries > 30) {
-            wprintf(
-                L"You seem to be having issues trying to obtain a lua_State*, make sure to publish your game, at least privately, else this tool will NOT work!\r\n");
-            wprintf(
-                L"Validation checks on the lua_State* will be ignored this time. But please remember to publish privately if you wanna use this tool without being an unstable mess!\r\n");
+            wprintf(L"You seem to be having issues trying to obtain a lua_State*, make sure to publish your game, at "
+                    L"least privately, else this tool will NOT work!\r\n");
+            wprintf(L"Validation checks on the lua_State* will be ignored this time. But please remember to publish "
+                    L"privately if you wanna use this tool without being an unstable mess!\r\n");
             ignoreChecks = true;
         }
 
         if (GetWindowTextA(GetForegroundWindow(), buf, sizeof(buf))) {
-            if (strstr(buf, ":\\") != nullptr &&
-                strstr(buf, "- Roblox Studio") != nullptr &&
+            if (strstr(buf, ":\\") != nullptr && strstr(buf, "- Roblox Studio") != nullptr &&
                 strstr(buf, ".rbxl") != nullptr) {
-                wprintf(
-                    L"WARNING: You seem to have a local file open. This tool does not support them correctly, and the grabbed state may not be correct!\r\n");
+                wprintf(L"WARNING: You seem to have a local file open. This tool does not support them correctly, and "
+                        L"the grabbed state may not be correct!\r\n");
                 ignoreChecks = true;
             }
         }
@@ -120,8 +119,8 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
                 return Hook::get_singleton()->get_pseudo_original()(L, idx);
             }
         } else {
-            wprintf(
-                L"[[Hook]] Checks ignored: You seem to have a local file opened as a place. This is not fully supported, please use a Place uploaded to RBX.\r\n");
+            wprintf(L"[[Hook]] Checks ignored: You seem to have a local file opened as a place. This is not fully "
+                    L"supported, please use a Place uploaded to RBX.\r\n");
         }
         auto oldTop = lua_gettop(L);
         auto oldObf = static_cast<RBX::Identity>(RBX::Security::to_obfuscated_identity(ud->identity));
@@ -137,14 +136,14 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
 
         RBX::Studio::Functions::rFromLuaState(L, nL);
         RBX::Security::Bypasses::set_thread_security(L, oldObf);
-
+        RBX::Security::Bypasses::reallocate_extraspace(nL);
         RBX::Security::Bypasses::set_thread_security(nL, RBX::Identity::Eight_Seven);
         RBX::Security::MarkThread(nL);
 
         lua_settop(L, oldTop);
-        //auto L_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(L->userdata);
-        //auto nL_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(nL->userdata);
-        //nL_userdata->sharedExtraSpace = L_userdata->sharedExtraSpace;
+        // auto L_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(L->userdata);
+        // auto nL_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(nL->userdata);
+        // nL_userdata->sharedExtraSpace = L_userdata->sharedExtraSpace;
         lua_newtable(L);
         lua_setglobal(nL, "_G");
         scheduler->initialize_with(nL, rL);
@@ -162,13 +161,9 @@ Hook *Hook::get_singleton() noexcept {
     return g_hookSingleton;
 }
 
-FunctionTypes::rFreeBlock Hook::get_freeblock_original() const {
-    return this->__original__freeblock__hook;
-}
+FunctionTypes::rFreeBlock Hook::get_freeblock_original() const { return this->__original__freeblock__hook; }
 
-FunctionTypes::pseudo2addr Hook::get_pseudo_original() const {
-    return this->__original__pseudo2addr__hook;
-}
+FunctionTypes::pseudo2addr Hook::get_pseudo_original() const { return this->__original__pseudo2addr__hook; }
 
 MH_STATUS Hook::remove_hook() const {
     return MH_DisableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
@@ -186,9 +181,9 @@ void Hook::initialize() {
 }
 
 MH_STATUS Hook::install_hook() {
-    MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr), pseudo2addr__detour,
-                  reinterpret_cast<void **>(const_cast<void *(**)(lua_State *,
-                                                                  int32_t)>(&__original__pseudo2addr__hook)));
+    MH_CreateHook(
+            reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr), pseudo2addr__detour,
+            reinterpret_cast<void **>(const_cast<void *(**) (lua_State *, int32_t)>(&__original__pseudo2addr__hook)));
     return MH_EnableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
 }
 
