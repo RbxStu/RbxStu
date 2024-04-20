@@ -603,7 +603,7 @@ oldNamecall = hookmetamethod_c(
 		-- Unacceptable.
 		for _, str in pairs_c(illegal) do
 			if string_match(string_lower(namecallName), string_lower(str)) then
-				return ("This function has been disabled for security reasons.")
+				return error_c("This function has been disabled for security reasons.")
 			end
 		end
 
@@ -646,7 +646,7 @@ oldIndex = hookmetamethod_c(
 		-- Unacceptable.
 		for _, str in pairs(illegal) do
 			if string_match(idx, str) then
-				return ("This function has been disabled for security reasons.")
+				return error_c("This function has been disabled for security reasons.")
 			end
 		end
 
