@@ -6,9 +6,9 @@
 
 #include "EnvironmentLibrary.hpp"
 
-class ClosureLibrary : public EnvironmentLibrary {
+class ClosureLibrary final : public EnvironmentLibrary {
 public:
-    void RegisterEnvironment(lua_State *L) override;
+    virtual ~ClosureLibrary() = default;
 
+    void register_environment(lua_State *L) override;
 };
-

@@ -9,11 +9,9 @@
 #include "Dependencies/HttpStatus.hpp"
 #include "Utilities.hpp"
 #include "WebsocketLibrary.hpp"
-#include "oxorany.hpp"
 #include "Closures.hpp"
 
 #include "Dependencies/Luau/VM/src/lmem.h"
-#include "Dependencies/Luau/VM/src/lapi.h"
 #include "Dependencies/Luau/VM/src/lvm.h"
 #include "Dependencies/Luau/VM/include/lua.h"
 #include "Dependencies/Luau/VM/src/lgc.h"
@@ -24,12 +22,12 @@
 #include "Security.hpp"
 #include "ltable.h"
 
-Environment *Environment::singleton = nullptr;
+Environment *Environment::sm_pSingleton = nullptr;
 
-Environment *Environment::GetSingleton() {
-    if (singleton == nullptr)
-        singleton = new Environment();
-    return singleton;
+Environment *Environment::get_singleton() {
+    if (sm_pSingleton == nullptr)
+        sm_pSingleton = new Environment();
+    return sm_pSingleton;
 }
 
 int getreg(lua_State *L) {
@@ -59,10 +57,10 @@ int consoleprint(lua_State *L) {
     auto utilities{Module::Utilities::get_singleton()};
     auto argc = lua_gettop(L);
     std::wstringstream strStream;
-    strStream << oxorany(L"[INFO] ");
+    strStream << "[INFO] ";
     for (int i = 0; i <= argc - 1; i++) {
         const char *lStr = luaL_tolstring(L, i + 1, nullptr);
-        strStream << utilities->ToWideString(lStr).c_str() << oxorany(L" ");
+        strStream << utilities->to_wstring(lStr).c_str() << " ";
     }
     std::wcout << termcolor::green << strStream.str() << termcolor::reset << std::endl;
 
@@ -73,10 +71,10 @@ int consolewarn(lua_State *L) {
     auto utilities{Module::Utilities::get_singleton()};
     auto argc = lua_gettop(L);
     std::wstringstream strStream;
-    strStream << oxorany(L"[WARN] ");
+    strStream << "[WARN] ";
     for (int i = 0; i <= argc - 1; i++) {
         const char *lStr = luaL_tolstring(L, i + 1, nullptr);
-        strStream << utilities->ToWideString(lStr).c_str() << oxorany(L" ");
+        strStream << utilities->to_wstring(lStr).c_str() << " ";
     }
     std::wcout << termcolor::yellow << strStream.str() << termcolor::reset << std::endl;
 
@@ -88,21 +86,20 @@ int consoleerror(lua_State *L) {
     auto argc = lua_gettop(L);
 
     std::wstringstream strStream;
-    strStream << oxorany(L"[ERROR] ");
+    strStream << "[ERROR] ";
     for (int i = 0; i < argc - 1; i++) {
         const char *lStr = luaL_tolstring(L, i + 1, nullptr);
-        strStream << utilities->ToWideString(lStr).c_str() << oxorany(L" ");
+        strStream << utilities->to_wstring(lStr).c_str() << " ";
     }
     std::wcerr << termcolor::red << strStream.str() << termcolor::reset << std::endl;
 
-    luaG_runerror(L, utilities->ToString(strStream.str()).c_str());
-    return 0;
+    luaG_runerror(L, utilities->to_string(strStream.str()).c_str());
 }
 
 int getgc(lua_State *L) {
-    bool addTables = luaL_optboolean(L, 1, false);
+    const bool addTables = luaL_optboolean(L, 1, false);
 
-    lua_createtable(L, 0, 0);    // getgc table, prealloc sum space, because yes.
+    lua_createtable(L, 0, 0); // getgc table, prealloc sum space, because yes.
 
     typedef struct {
         lua_State *pLua;
@@ -114,34 +111,31 @@ int getgc(lua_State *L) {
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "ConstantFunctionResult"
-    auto oldThreshold = L->global->GCthreshold;
+    const auto ullOldThreshold = L->global->GCthreshold;
     L->global->GCthreshold = SIZE_MAX;
     // Never return true. We aren't deleting shit.
     luaM_visitgco(L, &gcCtx, [](void *ctx, lua_Page *pPage,
                                 GCObject *pGcObj) -> bool {
-
-        auto gcCtx = reinterpret_cast<GCOContext *>(ctx);
-        auto L = gcCtx->pLua;
+        const auto pCtx = static_cast<GCOContext *>(ctx);
+        const auto ctxL = pCtx->pLua;
 
         if (iswhite(pGcObj))
-            return false;   // The object is being collected/checked. Skip it.
+            return false; // The object is being collected/checked. Skip it.
 
-        auto gcObjType = pGcObj->gch.tt;
-
-        if (gcObjType == LUA_TFUNCTION || gcObjType == LUA_TUSERDATA ||
-            gcObjType == LUA_TTABLE && gcCtx->accessTables) {
+        if (const auto gcObjType = pGcObj->gch.tt; gcObjType == LUA_TFUNCTION || gcObjType == LUA_TUSERDATA ||
+                                                   gcObjType == LUA_TTABLE && pCtx->accessTables) {
             // Push copy to top of stack.
-            L->top->value.gc = pGcObj;
-            L->top->tt = gcObjType;
-            L->top++;
+            ctxL->top->value.gc = pGcObj;
+            ctxL->top->tt = gcObjType;
+            ctxL->top++;
 
             // Store onto GC table.
-            auto tIndx = gcCtx->itemsFound++;
-            lua_rawseti(L, -2, tIndx + 1);
+            const auto tIndx = pCtx->itemsFound++;
+            lua_rawseti(ctxL, -2, tIndx + 1);
         }
         return false;
     });
-    L->global->GCthreshold = oldThreshold;
+    L->global->GCthreshold = ullOldThreshold;
 #pragma clang diagnostic pop
 
     return 1;
@@ -155,36 +149,49 @@ int httppost(lua_State *L) {
 
     const std::string targetUrl = lua_tostring(L, 2);
 
-    if (targetUrl.find(oxorany_pchar(L"http://")) != 0 && targetUrl.find(oxorany_pchar(L"https://")) != 0) {
-        luaG_runerror(L, oxorany_pchar(L"Invalid protocol (expected 'http://' or 'https://')"));
+    if (targetUrl.find("http://") == std::string::npos && targetUrl.find("https://") == std::string::npos) {
+        luaG_runerror(L, "Invalid protocol (expected 'http://' or 'https://')");
     }
 
     const auto *postData = lua_tostring(L, 3);
     const auto *contentType = lua_tostring(L, 4);
 
-    auto response = cpr::Post(cpr::Url{targetUrl}, cpr::Body{postData},
-                              cpr::Header{{("Content-Type"), contentType},
-                                          {("User-Agent"), ("Roblox/WinInet")}});
+    const auto response = cpr::Post(cpr::Url{targetUrl}, cpr::Body{postData},
+                                    cpr::Header{
+                                        {"Content-Type", contentType},
+                                        {"User-Agent", "Roblox/WinInet"}
+                                    });
+
+    if (HttpStatus::IsError(response.status_code)) {
+        const std::string Output = std::format("HttpPost Failed.\r\nResponse: %s - %s\n",
+                                               std::to_string(response.status_code),
+                                               HttpStatus::ReasonPhrase(response.status_code));
+
+        lua_pushstring(L, Output.c_str());
+        return 1;
+    }
+
+
     lua_pushlstring(L, response.text.c_str(), response.text.size());
     return 1;
 }
 
 int httpget(lua_State *L) {
     luaL_checktype(L, 1, LUA_TSTRING);
-    std::string targetUrl = lua_tostring(L, 1);
+    const std::string targetUrl = lua_tostring(L, 1);
 
-    if (targetUrl.find(oxorany_pchar(L"http://")) != 0 && targetUrl.find(oxorany_pchar(L"https://")) != 0) {
-        luaG_runerror(L, oxorany_pchar(L"Invalid protocol (expected 'http://' or 'https://')"));
+    if (targetUrl.find("http://") == std::string::npos && targetUrl.find("https://") == std::string::npos) {
+        luaG_runerror(L, "Invalid protocol (expected 'http://' or 'https://')");
     }
-
-    auto response = cpr::Get(
-            cpr::Url{targetUrl},
-            cpr::Header{{oxorany_pchar(L"User-Agent"), oxorany_pchar(L"Roblox/WinInet")}}
+    const auto response = cpr::Get(
+        cpr::Url{targetUrl},
+        cpr::Header{{"User-Agent", "Roblox/WinInet"}}
     );
 
     if (HttpStatus::IsError(response.status_code)) {
-        std::string Output = std::format(("Response: %s - %s\n"), std::to_string(response.status_code),
-                                         HttpStatus::ReasonPhrase(response.status_code));
+        const std::string Output = std::format("HttpGet Failed.\r\nResponse: %s - %s\n",
+                                               std::to_string(response.status_code),
+                                               HttpStatus::ReasonPhrase(response.status_code));
 
         lua_pushstring(L, Output.c_str());
         return 1;
@@ -195,19 +202,19 @@ int httpget(lua_State *L) {
 }
 
 int checkcaller(lua_State *L) {
-    auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
+    const auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
     // We must include a better checkcaller, at least for the future, this gayass check is killing me so bad.
     lua_pushboolean(L, extraSpace != nullptr && ((extraSpace->identity >= 4 && extraSpace->identity <=
-                                                                               9)) && L->global->mainthread ==
-                                                                                      Scheduler::get_singleton()->get_global_executor_state()->global->mainthread);
+                                                  9)) && L->global->mainthread ==
+                       Scheduler::get_singleton()->get_global_executor_state()->global->mainthread);
     // Check identity, the main thread of our original thread HAS to match up as well, else it is not one of our states at ALL!
     // That is also another way we can check with the identity!
     return 1;
 }
 
 int getidentity(lua_State *L) {
-    auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
+    const auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
     //wprintf(oxorany(L"Current State ExtraSpace:\r\n"));
     //wprintf(oxorany(L"  Identity  : 0x%p\r\n"), extraSpace->identity);
@@ -219,9 +226,9 @@ int getidentity(lua_State *L) {
 int setidentity(lua_State *L) {
     auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
-    auto newIdentity = luaL_optinteger(L, -1, oxorany(8));
+    const auto newIdentity = luaL_optinteger(L, -1, 8);
 
-    if (newIdentity > oxorany(9) || newIdentity < oxorany(0)) {
+    if (newIdentity > 9 || newIdentity < 0) {
         luaG_runerrorL(L, ("You may not set your identity below 0 or above 9."));
     }
 
@@ -232,8 +239,8 @@ int setidentity(lua_State *L) {
     //wprintf(oxorany(L"  Identity  : 0x%p\r\n"), extraSpace->identity);
     //wprintf(oxorany(L"Capabilities: 0x%p\r\n"), extraSpace->capabilities);
 
-    extraSpace->identity = newIdentity;     // Identity bypass.
-    extraSpace->capabilities = oxorany(0x3FFFF00) | RBX::Security::to_obfuscated_identity(newIdentity);
+    extraSpace->identity = newIdentity; // Identity bypass.
+    extraSpace->capabilities = 0x3FFFF00 | RBX::Security::to_obfuscated_identity(newIdentity);
 
     //wprintf(oxorany(L"New State ExtraSpace:\r\n"));
     //wprintf(oxorany(L"  Identity  : 0x%p\r\n"), extraSpace->identity);
@@ -252,7 +259,7 @@ int getrawmetatable(lua_State *L) {
 
 int setrawmetatable(lua_State *L) {
     luaL_argexpected(L, lua_istable(L, 1) || lua_islightuserdata(L, 1) || lua_isuserdata(L, 1), 2,
-                     ("table or userdata or lightuserdata"));
+                     "table or userdata or lightuserdata");
 
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_setmetatable(L, 1);
@@ -304,14 +311,15 @@ int setnamecallmethod(lua_State *L) {
 
 
 int identifyexecutor(lua_State *L) {
-    lua_pushstring(L, oxorany_pchar(L"RbxStu"));
-    lua_pushstring(L, oxorany_pchar(L"1.0.0"));
+    lua_pushstring(L, "RbxStu");
+    lua_pushstring(L, "1.0.0");
     return 2;
 }
 
-int hookmetamethod(lua_State *L) {  // Crashes on usage due to table related issues.
+int hookmetamethod(lua_State *L) {
+    // Crashes on usage due to table related issues.
     if (lua_type(L, 1) != LUA_TTABLE && lua_type(L, 1) != LUA_TUSERDATA) {
-        luaL_typeerrorL(L, 1, ("table or userdata"));
+        luaL_typeerrorL(L, 1, "table or userdata");
     }
 
     luaL_checktype(L, 2, LUA_TSTRING);
@@ -326,7 +334,7 @@ int hookmetamethod(lua_State *L) {  // Crashes on usage due to table related iss
         mt = uvalue(obj)->metatable;
 
     if (!mt)
-        luaL_typeerrorL(L, 1, oxorany_pchar(L"table or userdata with a metatable."));
+        luaL_typeerrorL(L, 1, "table or userdata with a metatable.");
 
     const auto metamethodName = lua_tostring(L, 2);
 
@@ -337,14 +345,14 @@ int hookmetamethod(lua_State *L) {  // Crashes on usage due to table related iss
     const auto *metamethodCl = static_cast<const lua_TValue *>(lua_topointer(L, -1));
 
     if (metamethodCl->tt == LUA_TNIL)
-        luaL_error(L, oxorany_pchar(L"table or userdata has no metamethod with name %s"), metamethodName);
+        luaL_error(L, "table or userdata has no metamethod with name %s", metamethodName);
 
     L->top->tt = LUA_TFUNCTION;
     L->top->value.p = static_cast<void *>(const_cast<lua_TValue *>(metamethodCl));
-    L->top++;                       // toHook
-    lua_pushvalue(L, 3);            // hookWith
+    L->top++; // toHook
+    lua_pushvalue(L, 3); // hookWith
 
-    lua_getglobal(L, oxorany_pchar(L"hookfunction"));
+    lua_getglobal(L, "hookfunction");
     lua_pcall(L, 2, 1, 0);
 
     return 1;
@@ -362,15 +370,15 @@ int gettenv(lua_State *L) {
 }
 
 int gethui(lua_State *L) {
-    lua_getglobal(L, oxorany_pchar(L"game"));
-    lua_getfield(L, oxorany(-1), oxorany_pchar(L"CoreGui"));
+    lua_getglobal(L, "game");
+    lua_getfield(L, -1, "CoreGui");
     return 1;
 }
 
 int isrbxactive(lua_State *L) {
     char buf[0xff];
     if (GetWindowTextA(GetForegroundWindow(), buf, sizeof(buf))) {
-        lua_pushboolean(L, strstr(buf, oxorany_pchar(L"Roblox Studio")) != nullptr);
+        lua_pushboolean(L, strstr(buf, "Roblox Studio") != nullptr);
     } else {
         lua_pushboolean(L, false);
     }
@@ -383,72 +391,73 @@ int isluau(lua_State *L) {
     return 1;
 }
 
-int Environment::Register(lua_State *L, bool useInitScript) {
+int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
-            {oxorany_pchar(L"isluau"),                    isluau},
-            {oxorany_pchar(L"isrbxactive"),               isrbxactive},
+        {"isluau", isluau},
+        {"isrbxactive", isrbxactive},
 
-            {oxorany_pchar(L"getreg"),                    getreg},
-            {oxorany_pchar(L"getgc"),                     getgc},
+        {"getreg", getreg},
+        {"getgc", getgc},
 
-            {oxorany_pchar(L"gettenv"),                   gettenv},
-            {oxorany_pchar(L"getgenv"),                   getgenv},
-            {oxorany_pchar(L"getrenv"),                   getrenv},
+        {"gettenv", gettenv},
+        {"getgenv", getgenv},
+        {"getrenv", getrenv},
 
-            {oxorany_pchar(L"checkcaller"),               checkcaller},
+        {"checkcaller", checkcaller},
 
-            {oxorany_pchar(L"setidentity"),               setidentity},
-            {oxorany_pchar(L"setthreadidentity"),         setidentity},
-            {oxorany_pchar(L"setthreadcontext"),          setidentity},
+        {"setidentity", setidentity},
+        {"setthreadidentity", setidentity},
+        {"setthreadcontext", setidentity},
 
-            {oxorany_pchar(L"getidentity"),               getidentity},
-            {oxorany_pchar(L"getthreadidentity"),         getidentity},
-            {oxorany_pchar(L"getthreadcontext"),          getidentity},
+        {"getidentity", getidentity},
+        {"getthreadidentity", getidentity},
+        {"getthreadcontext", getidentity},
 
-            {oxorany_pchar(L"getrawmetatable"),           getrawmetatable},
-            {oxorany_pchar(L"setrawmetatable"),           setrawmetatable},
+        {"getrawmetatable", getrawmetatable},
+        {"setrawmetatable", setrawmetatable},
 
-            {oxorany_pchar(L"setreadonly"),               setreadonly},
-            {oxorany_pchar(L"isreadonly"),                isreadonly},
-            {oxorany_pchar(L"make_writeable"),            make_writeable},
-            {oxorany_pchar(L"make_readonly"),             make_readonly},
+        {"setreadonly", setreadonly},
+        {"isreadonly", isreadonly},
+        {"make_writeable", make_writeable},
+        {"make_readonly", make_readonly},
 
-            {oxorany_pchar(L"getnamecallmethod"),         getnamecallmethod},
-            {oxorany_pchar(L"setnamecallmethod"),         setnamecallmethod},
+        {"getnamecallmethod", getnamecallmethod},
+        {"setnamecallmethod", setnamecallmethod},
 
-            {oxorany_pchar(L"identifyexecutor"),          identifyexecutor},
-            {oxorany_pchar(L"getexecutorname"),           identifyexecutor},
+        {"identifyexecutor", identifyexecutor},
+        {"getexecutorname", identifyexecutor},
 
 
-            {oxorany_pchar(L"consoleprint"),              consoleprint},
-            {oxorany_pchar(L"rconsoleprint"),             consoleprint},
-            {oxorany_pchar(L"consolewarn"),               consolewarn},
-            {oxorany_pchar(L"rconsolewarn"),              consolewarn},
-            {oxorany_pchar(L"consoleerror"),              consoleerror},
-            {oxorany_pchar(L"rconsoleerror"),             consoleerror},
-            {oxorany_pchar(L"isrbxactive"),               isrbxactive},
-            {oxorany_pchar(L"isgameactive"),              isrbxactive},
+        {"consoleprint", consoleprint},
+        {"rconsoleprint", consoleprint},
+        {"consolewarn", consolewarn},
+        {"rconsolewarn", consolewarn},
+        {"consoleerror", consoleerror},
+        {"rconsoleerror", consoleerror},
+        {"isrbxactive", isrbxactive},
+        {"isgameactive", isrbxactive},
 
-            // {oxorany_pchar(L"hookmetamethod"),    hookmetamethod},
-            {oxorany_pchar(L"HttpGet"),                   httpget},
-            {oxorany_pchar(L"HttpPost"),                  httppost},
+        //("hookmetamethod",    hookmetamethod},
+        {"HttpGet", httpget},
+        {"HttpPost", httppost},
 
-            {oxorany_pchar(L"__SCHEDULER_STEPPED__HOOK"), (static_cast<lua_CFunction>([](lua_State *L) -> int {
-                auto *scheduler{Scheduler::get_singleton()};
-                if (scheduler->is_initialized()) {
+        {
+            "__SCHEDULER_STEPPED__HOOK", (static_cast<lua_CFunction>([](lua_State *L) -> int {
+                if (auto *scheduler{Scheduler::get_singleton()}; scheduler->is_initialized()) {
                     scheduler->scheduler_step(scheduler->get_global_executor_state());
                 }
                 return (0);
-            }))},
+            }))
+        },
 
-            {oxorany_pchar(L"gethui"),                    gethui},
+        {"gethui", gethui},
 
-            // {oxorany_pchar(L"reinit"),            reinit},
+        // {oxorany_pchar(L"reinit"),            reinit},
 
-            {nullptr,                                     nullptr},
+        {nullptr, nullptr},
     };
 
-    lua_pushvalue(L, oxorany(LUA_GLOBALSINDEX));
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
     luaL_register(L, nullptr, reg);
     lua_pop(L, 1);
 
@@ -457,22 +466,19 @@ int Environment::Register(lua_State *L, bool useInitScript) {
     lua_setfield(L, -2, "_G");
 
     auto closuresLibrary = ClosureLibrary{};
-    std::cout << ("Registering Closure Library") << std::endl;
-    closuresLibrary.RegisterEnvironment(L);
-
-    auto debugLibrary = DebugLibrary{};
-    std::cout << ("Registering Debug Library") << std::endl;
-    debugLibrary.RegisterEnvironment(L);
-
     auto websocketsLibrary = WebsocketLibrary{};
-    std::cout << ("Registering Websocket Library") << std::endl;
-    websocketsLibrary.RegisterEnvironment(L);
+    auto debugLibrary = DebugLibrary{};
+    printf("[Envionment::register_env] Registering available libraries...\r\n");
+    closuresLibrary.register_environment(L);
+    debugLibrary.register_environment(L);
+    websocketsLibrary.register_environment(L);
 
     if (useInitScript) {
-        std::cout << ("Running init script...") << std::endl;
+        printf("[Envionment::register_env] Pushing initialization script to scheduler for execution...\r\n");
+
 
         // Initialize execution,
-        std::string str = (R"(
+        const std::string initscript = (R"(
 local clonefunction_c = clonefunction(clonefunction)
 local checkcaller_c = clonefunction(checkcaller)
 local game_getservice = clonefunction_c(game.GetService)
@@ -675,17 +681,16 @@ oldIndex = hookmetamethod_c(
         //                                  static_cast<RBX::Lua::ExtraSpace *>(L->userdata)->identity)));
         //lua_pcall(L, 0, 0, 0);
         //RBX::Studio::Functions::rTask_defer(L);
-        std::string hook = (R"(
+
+        printf("[Environment::register_env] Attempting to initialize custom scheduler...\r\n");
+        const std::string schedulerHook = (R"(
             game:GetService("RunService").Stepped:Connect(function()
                 __SCHEDULER_STEPPED__HOOK()
             end)
         )");
-        Scheduler::get_singleton()->schedule_job(hook);
+        Scheduler::get_singleton()->schedule_job(schedulerHook);
         Scheduler::get_singleton()->scheduler_step(Scheduler::get_singleton()->get_global_executor_state());
-        Scheduler::get_singleton()->schedule_job(str);
-
-
-        std::cout << ("Init script queued.") << std::endl;
+        Scheduler::get_singleton()->schedule_job(initscript);
         Sleep(200);
     }
 

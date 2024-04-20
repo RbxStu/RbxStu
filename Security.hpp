@@ -4,7 +4,6 @@
 #pragma once
 
 #include <lapi.h>
-#include "oxorany/oxorany.h"
 
 typedef int64_t (*Validator)(int64_t testAgainst, struct lua_State *testWith);
 
@@ -17,6 +16,7 @@ namespace RBX::Lua {
             char field_18[0x8];
             void *__intrusive_set_AllThreads;
         };
+
         uint8_t __CUSTOM__THREADMARK;
         [[maybe_unused]] char _1[7];
         [[maybe_unused]] char _8[8];
@@ -45,14 +45,13 @@ namespace RBX::Lua {
 }
 
 namespace RBX {
-
     enum Identity {
-        One_Four = (3),
-        Two = (0),
-        Five = (1),
-        Three_Six = (0xB),
-        Eight_Seven = (0x3F),
-        Nine = (0xC)
+        One_Four = 3,
+        Two = 0,
+        Five = 1,
+        Three_Six = 0xB,
+        Eight_Seven = 0x3F,
+        Nine = 0xC
     };
 
     namespace Security {
@@ -64,11 +63,10 @@ namespace RBX {
         void MarkThread(lua_State *L);
 
         namespace Bypasses {
-            void set_thread_security(lua_State *L, RBX::Identity identity);
+            void set_thread_security(lua_State *L, const RBX::Identity &identity);
 
             // Sets capabilities on Lua closures, returns false if the operation fails (i.e: The closure is a C closure).
-            bool set_luaclosure_security(Closure *cl, RBX::Identity identity);
+            bool set_luaclosure_security( Closure *cl, const RBX::Identity &identity);
         }
     }
-
 }

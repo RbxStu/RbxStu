@@ -36,7 +36,7 @@ namespace Module {
          *  @param closure The closure to validate.
          */
 
-        bool IsCClosureHandler(Closure *closure);
+        bool IsCClosureHandler(const Closure *cl);
 
         /*
          *  Finds a wrapped closure given its wrapper

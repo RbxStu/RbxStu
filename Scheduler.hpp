@@ -15,9 +15,7 @@ public: // TODO: Implement yielding correctly.
 };
 
 class Scheduler {
-    //#region Static Fields
     static Scheduler *singleton;
-    //#endregion Static Fields
 
     lua_State *m_lsInitialisedWith;
     lua_State *m_lsRoblox;
@@ -26,9 +24,7 @@ class Scheduler {
     SchedulerJob get_scheduler_job();
 
 public:
-    //#region Static Members
     static Scheduler *get_singleton();
-    //#endregion Static Members
 
     void execute_job(lua_State *runOn, SchedulerJob *job);
 
@@ -36,11 +32,11 @@ public:
 
     void initialize_with(lua_State *L, lua_State *rL);
 
-    bool is_initialized();
+    bool is_initialized() const;
 
-    lua_State *get_global_executor_state();
+    lua_State *get_global_executor_state() const;
 
-    lua_State *get_global_roblox_state();
+    lua_State *get_global_roblox_state() const;
 
     void scheduler_step(lua_State *runner);
 

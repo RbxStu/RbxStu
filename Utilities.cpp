@@ -11,18 +11,18 @@
 Module::Utilities *Module::Utilities::sm_pModule = nullptr;
 
 Module::Utilities *Module::Utilities::get_singleton() {
-    if (Module::Utilities::sm_pModule == nullptr)
-        Module::Utilities::sm_pModule = new Module::Utilities();
+    if (sm_pModule == nullptr)
+        sm_pModule = new Utilities();
 
-    return Module::Utilities::sm_pModule;
+    return sm_pModule;
 }
 
-std::wstring Module::Utilities::RandomWideString(int length) {
-    const wchar_t *alphabet = oxorany(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+std::wstring Module::Utilities::get_random_wstring(const int length) {
+    constexpr auto alphabet = (L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
 
     std::random_device rngDevice;
     std::mt19937 rng(rngDevice());
-    std::uniform_int_distribution<int> distribution(oxorany(0), oxorany(62));
+    std::uniform_int_distribution<int> distribution((0), (62));
 
     std::wstring randomString;
     randomString.reserve(length);
@@ -34,12 +34,12 @@ std::wstring Module::Utilities::RandomWideString(int length) {
     return randomString;
 }
 
-std::string Module::Utilities::RandomString(int length) {
-    const char *alphabet = this->ToChar(oxorany(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"));
+std::string Module::Utilities::get_random_string(const int length) {
+    constexpr char alphabet[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     std::random_device rngDevice;
     std::mt19937 rng(rngDevice());
-    std::uniform_int_distribution<int> distribution(oxorany(0), oxorany(62));
+    std::uniform_int_distribution<int> distribution((0), (62));
 
 
     std::string randomString;
@@ -55,16 +55,16 @@ std::string Module::Utilities::RandomString(int length) {
 }
 
 /// Converts wchar_t into char. Returns heap allocated memory. YOU MUST DISPOSE!
-const char *Module::Utilities::ToChar(const wchar_t *szConvert) {
-    auto len = (wcslen(szConvert) + 1) * 2;
-    char *str = new char[len];
+const char *Module::Utilities::to_char(const wchar_t *szConvert) {
+    const auto len = (wcslen(szConvert) + 1) * 2;
+    const auto str = new char[len];
     size_t convertedChars = 0;
     wcstombs_s(&convertedChars, str, len, szConvert, _TRUNCATE);
     return str;
 }
 
 /// Converts char into wchar_t. Returns heap allocated memory. YOU MUST DISPOSE!
-const wchar_t *Module::Utilities::ToWideCharacter(const char *szConvert) {
+const wchar_t *Module::Utilities::to_wchar(const char *szConvert) {
     auto charLen = strlen(szConvert) + 1;
     auto *wText = new wchar_t[charLen];
     size_t outSize = 0;
@@ -73,23 +73,26 @@ const wchar_t *Module::Utilities::ToWideCharacter(const char *szConvert) {
 }
 
 
-std::string Module::Utilities::ToString(const std::wstring& szConvert) {
+std::string Module::Utilities::to_string(const std::wstring &szConvert) {
     if (szConvert.empty()) return {};
 
-    int len = WideCharToMultiByte(CP_UTF8, 0, szConvert.c_str(), (int) szConvert.size(), nullptr, 0, nullptr,
-                                  nullptr);
+    const int len = WideCharToMultiByte(CP_UTF8, 0, szConvert.c_str(), static_cast<int>(szConvert.size()), nullptr, 0,
+                                        nullptr,
+                                        nullptr);
     std::string strTo(len, 0);
-    WideCharToMultiByte(CP_UTF8, 0, szConvert.c_str(), (int) szConvert.size(), const_cast<char *>(strTo.c_str()),
+    WideCharToMultiByte(CP_UTF8, 0, szConvert.c_str(), static_cast<int>(szConvert.size()),
+                        const_cast<char *>(strTo.c_str()),
                         len, nullptr, nullptr);
     return strTo;
 }
 
-std::wstring Module::Utilities::ToWideString(const std::string& szConvert) {
+std::wstring Module::Utilities::to_wstring(const std::string &szConvert) {
     if (szConvert.empty()) return {};
 
-    int len = MultiByteToWideChar(CP_UTF8, 0, szConvert.c_str(), (int) szConvert.size(), nullptr, 0);
+    const int len = MultiByteToWideChar(CP_UTF8, 0, szConvert.c_str(), static_cast<int>(szConvert.size()), nullptr, 0);
     std::wstring nStr(len, 0);
-    MultiByteToWideChar(CP_UTF8, 0, szConvert.c_str(), (int) szConvert.size(), const_cast<wchar_t *>(nStr.c_str()),
+    MultiByteToWideChar(CP_UTF8, 0, szConvert.c_str(), static_cast<int>(szConvert.size()),
+                        const_cast<wchar_t *>(nStr.c_str()),
                         len);
     return nStr;
 }

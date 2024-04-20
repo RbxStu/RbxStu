@@ -14,7 +14,6 @@ class Hook {
     FunctionTypes::pseudo2addr __original__pseudo2addr__hook;
     FunctionTypes::rFreeBlock __original__freeblock__hook;
 
-private:
     static void *pseudo2addr__detour(lua_State *L, int idx);
 
     static void freeblock__detour(lua_State *L, int32_t sizeClass, void *block);
@@ -25,20 +24,15 @@ public:
 
     MH_STATUS install_additional_hooks();
 
-    void initialize() const;
+    void initialize();
 
-    [[nodiscard]] MH_STATUS install_hook() const;
+    MH_STATUS install_hook();
 
     static void wait_until_initialised();
 
     [[nodiscard]] MH_STATUS remove_hook() const;
 
-    [[nodiscard]] FunctionTypes::rFreeBlock get_freeblock_original();
+    [[nodiscard]] FunctionTypes::rFreeBlock get_freeblock_original() const;
 
-    [[nodiscard]] FunctionTypes::pseudo2addr get_pseudo_original();
-
-    // Completes initialization of the schedulers' execution pipeline by
-    // Connecting into RunService.HeartBeat using Lua and executing our custom schedulers' C closure.
-    void complete_initialization();
+    [[nodiscard]] FunctionTypes::pseudo2addr get_pseudo_original() const;
 };
-

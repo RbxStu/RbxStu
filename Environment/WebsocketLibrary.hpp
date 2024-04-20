@@ -9,8 +9,6 @@
 #include <ixwebsocket/IXWebSocketMessageType.h>
 
 class Websocket {
-
-
     static int __index(lua_State *L);
 
     static int close(lua_State *L);
@@ -18,11 +16,11 @@ class Websocket {
     static int send(lua_State *L);
 
 public:
-    Websocket *pSocketUserdata;      // Self (as ud).
+    Websocket *pSocketUserdata; // Self (as ud).
     ix::WebSocket *pWebSocket;
 
     lua_State *pLuaThread;
-    long pLuaThreadRef;
+    long ullLuaThreadRef;
 
     struct {
         long onClose_ref;
@@ -36,7 +34,7 @@ public:
 
         pSocketUserdata = nullptr;
         pLuaThread = nullptr;
-        pLuaThreadRef = -1;
+        ullLuaThreadRef = -1;
     }
 
     bool initialize_socket(lua_State *origin);
@@ -44,7 +42,9 @@ public:
     bool try_connect_websocket(const std::string &url);
 };
 
-class WebsocketLibrary : public EnvironmentLibrary {
+class WebsocketLibrary final : public EnvironmentLibrary {
 public:
-    void RegisterEnvironment(lua_State *L) override;
+    virtual ~WebsocketLibrary() = default;
+
+    void register_environment(lua_State *L) override;
 };

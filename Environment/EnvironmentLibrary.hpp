@@ -10,7 +10,10 @@
  *  This class defines the contract required to export environment functions as a "library".
  */
 class EnvironmentLibrary {
+protected:
+    ~EnvironmentLibrary() = default;
+
 public:
-    virtual void RegisterEnvironment(lua_State *L);
+    virtual void register_environment(lua_State *L);
 };
 

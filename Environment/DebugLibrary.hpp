@@ -6,8 +6,10 @@
 
 #include "EnvironmentLibrary.hpp"
 
-class DebugLibrary : public EnvironmentLibrary {
-public:
-    void RegisterEnvironment(lua_State *L) override;
-};
+class DebugLibrary final : public EnvironmentLibrary {
+protected:
+    ~DebugLibrary() = default;
 
+public:
+    void register_environment(lua_State *L) override;
+};

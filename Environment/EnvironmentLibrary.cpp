@@ -4,6 +4,6 @@
 
 #include "EnvironmentLibrary.hpp"
 
-void EnvironmentLibrary::RegisterEnvironment(lua_State *L) {
+void EnvironmentLibrary::register_environment(lua_State *L) {
 
 }

@@ -16,13 +16,13 @@
 class [[maybe_unused]] Execution {
 private:
     static Execution *singleton;
-public:
-    static Execution *GetSingleton();
 
-    int RegisterEnvironment(lua_State *L, bool useInitScript);
+public:
+    static Execution *get_singleton();
+
+    int register_environment(lua_State *L, bool useInitScript);
 
     int lua_loadstring(lua_State *L, const std::string &code, std::string chunkName, RBX::Identity identity);
 
-    std::string Compile(const std::string &code);
+    std::string compile_to_bytecode(const std::string &code);
 };
-

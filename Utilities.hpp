@@ -6,32 +6,29 @@
 #include <sstream>
 #include <oxorany.hpp>
 
-#define oxorany_pchar(wstr) (Module::Utilities::get_singleton()->ToChar((wstr)))    // Oxorany has been removed.
-
 namespace Module {
     class Utilities {
         Utilities() = default;
 
         static Utilities *sm_pModule;
+
     public:
         static Utilities *get_singleton();
 
-        std::string RandomString(int length);
+        std::string get_random_string(int length);
 
-        std::wstring RandomWideString(int length);
+        std::wstring get_random_wstring(int length);
 
         /// Converts wchar_t into char. Returns heap allocated memory. YOU MUST DISPOSE!
-        const char *ToChar(const wchar_t *szConvert);
+        const char *to_char(const wchar_t *szConvert);
 
         /// Converts std::wstring into std::string.
-        std::string ToString(const std::wstring &szConvert);
+        std::string to_string(const std::wstring &szConvert);
 
         /// Converts std::sstring into std::wstring.
-        std::wstring ToWideString(const std::string &szConvert);
+        std::wstring to_wstring(const std::string &szConvert);
 
         /// Converts char into wchar_t. Returns heap allocated memory. YOU MUST DISPOSE!
-        const wchar_t *ToWideCharacter(const char *szConvert);
-
+        const wchar_t *to_wchar(const char *szConvert);
     };
 }
-

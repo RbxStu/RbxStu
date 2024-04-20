@@ -16,11 +16,10 @@
 
 class Environment {
 private:
-    static Environment *singleton;
+    static Environment *sm_pSingleton;
+
 public:
-    static Environment *GetSingleton();
+    static Environment *get_singleton();
 
-    int Register(lua_State *L, bool useInitScript);
+    int register_env(lua_State *L, bool useInitScript);
 };
-
-
