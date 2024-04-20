@@ -49,8 +49,6 @@ std::string Module::Utilities::get_random_string(const int length) {
         randomString += alphabet[distribution(rng)];
     }
 
-    delete[] alphabet; // Deallocate.
-
     return randomString;
 }
 
