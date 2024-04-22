@@ -570,6 +570,28 @@ getgenv_c().getrunningscripts = newcclosure_c(function()
 	return scripts
 end)
 
+getgenv_c().vsc_websocket = newcclosure_c(function()
+    if not game:IsLoaded() then
+        game.Loaded:Wait();
+    end
+
+    while task.wait(1) do
+        local success, client = pcall(WebSocket.connect, "ws://localhost:33882/");
+        if success then
+            client.OnMessage:Connect(function(payload)
+                local callback, exception = loadstring(payload);
+                if exception then
+                    error(exception, 2);
+                end
+
+                task.spawn(callback);
+            end);
+
+            client.OnClose:Wait();
+        end
+    end
+end)
+
 
 local illegal = {
 	"OpenVideosFolder",
