@@ -901,8 +901,8 @@ oldIndex = hookmetamethod_c(
             consoleprint_c("--- __INDEX INSTRUMENTATION CALL ---")
             consoleprint_c("------------------------------------")
 
-            consoleprint_c("ATTEMPTED TO INDEX: " .. tostring(select_c(1, ...))
-            consoleprint_c("WITH           KEY: " .. tostring(select_c(2, ...))
+            consoleprint_c("ATTEMPTED TO INDEX: " .. tostring(select_c(1, ...)))
+            consoleprint_c("WITH           KEY: " .. tostring(select_c(2, ...)))
 
             consoleprint_c("----------------------------------------")
             consoleprint_c("--- END __INDEX INSTRUMENTATION CALL ---")
