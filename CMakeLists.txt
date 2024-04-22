@@ -21,6 +21,8 @@ add_library(Module SHARED
         Hook.cpp
         Environment/WebsocketLibrary.cpp
         Environment/FilesystemLibrary.cpp
+        Communication.cpp
+        Communication.hpp
         # RBXScheduler.cpp
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
