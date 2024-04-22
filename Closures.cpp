@@ -135,9 +135,11 @@ int NewCClosureHandler(lua_State *L) {
     lua_insert(L, 1);
 
     const auto callResult = lua_pcall(L, argc, LUA_MULTRET, 0);
-    if (callResult == LUA_YIELD &&
-        (0 == std::strcmp(luaL_optstring(L, -1, ""), "attempt to yield across metamethod/C-call boundary")))
+    if (callResult != LUA_OK && callResult != LUA_YIELD &&
+        std::strcmp(luaL_optstring(L, -1, ""), "attempt to yield across metamethod/C-call boundary") == 0) {
+        printf("\r\n[Closures::NewCClosureHandler] The wrapped lua closure needs to yield!\r\n");
         return lua_yield(L, LUA_MULTRET);
+    }
 
     if (callResult == LUA_ERRRUN)
         lua_error(
