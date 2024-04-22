@@ -235,7 +235,8 @@ int checkcaller(lua_State *L) {
     const auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
     // We must include a better checkcaller, at least for the future, this gayass check is killing me so bad.
-    lua_pushboolean(L, extraSpace != nullptr && ((extraSpace->identity >= 4 && extraSpace->identity <= 9)));
+    lua_pushboolean(L, extraSpace != nullptr && L->gt == Scheduler::get_singleton()->get_global_executor_state()->gt &&
+                               ((extraSpace->identity >= 4 && extraSpace->identity <= 9)));
     // Check identity, the main thread of our original thread HAS to match up as well, else it is not one of our states
     // at ALL! That is also another way we can check with the identity!
     return 1;
