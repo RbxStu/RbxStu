@@ -30,6 +30,9 @@ Environment *Environment::get_singleton() {
     return sm_pSingleton;
 }
 
+bool Environment::get_instrumentation_status() const { return this->m_bInstrumentEnvironment; }
+void Environment::set_instrumentation_status(bool bState) { this->m_bInstrumentEnvironment = bState; }
+
 int getreg(lua_State *L) {
     auto scheduler{Scheduler::get_singleton()};
 
@@ -383,8 +386,28 @@ int isluau(lua_State *L) {
     return 1;
 }
 
+int enable_environment_instrumentation(lua_State *L) {
+    Environment::get_singleton()->set_instrumentation_status(true);
+    return 0;
+}
+
+int disable_environment_instrumentation(lua_State *L) {
+    Environment::get_singleton()->set_instrumentation_status(false);
+    return 0;
+}
+
+int is_environment_instrumented(lua_State *L) {
+    lua_pushboolean(L, Environment::get_singleton()->get_instrumentation_status());
+    return 1;
+}
+
 int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
+            {"enable_environment_instrumentation", enable_environment_instrumentation},
+            {"disable_environment_instrumentation", disable_environment_instrumentation},
+            {"is_environment_instrumented", is_environment_instrumented},
+
+
             {"isluau", isluau},
             {"isrbxactive", isrbxactive},
 
@@ -489,8 +512,127 @@ local HttpGet_c = clonefunction_c(HttpGet)
 local select_c = clonefunction_c(select)
 local pairs_c = clonefunction_c(pairs)
 local typeof_c = clonefunction_c(typeof)
+local is_environment_instrumented_c = clonefunction_c(is_environment_instrumented)
+local consoleprint_c = clonefunction_c(consoleprint)
+local consolewarn_c = clonefunction_c(consolewarn)
+local consoleerror_c = clonefunction_c(consoleerror)
 
 print("setting genv")
+local function reconstruct_table(t_)
+	local function tL(t)
+		if type(t) ~= "table" then
+			return 0
+		end
+		local a = 0
+		for _, _ in pairs(t) do
+			a = a + 1
+		end
+		return a
+	end
+
+	local function tL_nested(t)
+		if type(t) ~= "table" then
+			return 0
+		end
+		local a = 0
+		for _, v in pairs(t) do
+			if type(v) == "table" then
+				a = a + tL_nested(v)
+			end
+			a = a + 1 -- Even if it was a table, we still count the table index itself as a value, not just its subvalues!
+		end
+		return a
+	end
+
+	if type(t_) ~= "table" then
+		return string.format("-- Given object is not a table, rather a %s. Cannot reconstruct.", type(t_))
+	end
+
+	local function inner__reconstruct_table(t, isChildTable, childDepth)
+		local tableConstruct = ""
+		if not isChildTable then
+			tableConstruct = "local t = {\n"
+		end
+
+		if childDepth > 30 then
+			tableConstruct = string.format("%s\n--Cannot Reconstruct, Too much nesting!\n", tableConstruct)
+			return tableConstruct
+		end
+
+		for idx, val in pairs(t) do
+			local idxType = type(val)
+			if type(idx) == "number" then
+				idx = idx
+			else
+				idx = string.format('"%s"', string.gsub(string.gsub(tostring(idx), "'", "'"), '"', '\\"'))
+			end
+
+			if idxType == "boolean" then
+				tableConstruct = string.format(
+					"%s%s[%s] = %s",
+					tableConstruct,
+					string.rep("\t", childDepth),
+					tostring(idx),
+					val and "true" or "false"
+				)
+			elseif idxType == "function" or idxType == "number" or idxType == "string" then
+				local v = tostring(val)
+
+				if idxType == "number" then
+					if string.match(tostring(v), "nan") then
+						v = "0 / 0"
+					elseif string.match(tostring(v), "inf") then
+						v = "math.huge"
+					elseif tostring(v) == tostring(math.pi) then
+						v = "math.pi"
+					end
+				end
+
+				if idxType == "string" then
+					v = string.format('"%s"', string.gsub(string.gsub(v, "'", "'"), '"', '\\"'))
+				end
+
+				tableConstruct =
+					string.format("%s%s[%s] = %s", tableConstruct, string.rep("\t", childDepth), tostring(idx), v)
+			elseif idxType == "table" then
+				local r = inner__reconstruct_table(val, true, childDepth + 1)
+				tableConstruct =
+					string.format("%s%s[%s] = {\n%s", tableConstruct, string.rep("\t", childDepth), tostring(idx), r)
+			elseif idxType == "nil" then
+				tableConstruct =
+					string.format("%s%s[%s] = nil", tableConstruct, string.rep("\t", childDepth), tostring(idx))
+			elseif idxType == "userdata" then
+				tableConstruct = string.format(
+					'%s%s[%s] = "UserData. Cannot represent."',
+					string.rep("\t", childDepth),
+					tableConstruct,
+					tostring(idx)
+				)
+			end
+			tableConstruct = string.format("%s,\n", tableConstruct)
+		end
+		if isChildTable then
+			return string.format("%s%s}", tableConstruct, string.rep("\t", childDepth - 1))
+		else
+			return string.format("%s}\n", tableConstruct)
+		end
+	end
+	local welcomeMessage = [[
+-- Table reconstructed using table_reconstructor by usrDottik (Originally made by MakeSureDudeDies)
+-- Reconstruction   began   @ %s - GMT 00:00
+-- Reconstruction completed @ %s - GMT 00:00
+-- Indexes Found inside of the Table (W/o  Nested Tables): %d
+--                                   (With Nested Tables): %d
+]]
+	local begin = tostring(os.date("!%Y-%m-%d %H:%M:%S"))
+	local reconstruction = inner__reconstruct_table(t_, false, 1)
+	local finish = tostring(os.date("!%Y-%m-%d %H:%M:%S"))
+	welcomeMessage = string.format(welcomeMessage, begin, finish, tL(t_), tL_nested(t_))
+
+	return string.format("%s%s", welcomeMessage, reconstruction)
+end
+
+
 getgenv_c().GetObjects = newcclosure_c(function(assetId)
 	local oldId = getIdentity_c()
 	setIdentity_c(8)
@@ -592,7 +734,6 @@ getgenv_c().vsc_websocket = (function()
 	end
 end)
 
-
 local illegal = {
 	"OpenVideosFolder",
 	"OpenScreenshotsFolder",
@@ -620,6 +761,28 @@ oldNamecall = hookmetamethod_c(
 		end
 
 		local namecallName = (getnamecallmethod_c())
+
+        if is_environment_instrumented_c() then
+            -- The environment is being instrumented. Print ALL function arguments to replicate the call the exploit environment is making.
+            consoleprint_c("---------------------------------------")
+            consoleprint_c("--- __NAMECALL INSTRUMENTATION CALL ---")
+            consoleprint_c("---------------------------------------")
+            local args = { ... }
+            consoleprint_c("NAMECALL METHOD NAME: " .. tostring(namecallName))
+            consoleprint_c("WITH ARGUMENTS: ")
+            consoleprint_c("ARGC: " .. tostring(#args))
+            consoleprint_c("SELF (typeof): " .. tostring(typeof_c(select_c(1, ...))))
+            consoleprint_c("ARGUMENTS (RECONSTRUCTED TO TABLE): ")
+            args[1] = nil
+            if #args >= 15 then
+                consolewarn_c("Table too big to reconstruct safely!")
+            end
+            consoleprint_c(reconstruct_table(args))
+
+            consoleprint_c("----------------------------------------")
+            consoleprint_c("--- END __INDEX INSTRUMENTATION CALL ---")
+            consoleprint_c("----------------------------------------")
+        end
 
 		-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
 		-- Unacceptable.
@@ -657,6 +820,21 @@ oldIndex = hookmetamethod_c(
 		if not checkcaller_c() then
 			return oldIndex(...)
 		end
+
+        if is_environment_instrumented_c() then
+            -- The environment is being instrumented. Print ALL function arguments to replicate the call the exploit environment is making.
+            consoleprint_c("------------------------------------")
+            consoleprint_c("--- __INDEX INSTRUMENTATION CALL ---")
+            consoleprint_c("------------------------------------")
+
+            consoleprint_c("ATTEMPTED TO INDEX: " .. tostring(select_c(1, ...))
+            consoleprint_c("WITH           KEY: " .. tostring(select_c(2, ...))
+
+            consoleprint_c("----------------------------------------")
+            consoleprint_c("--- END __INDEX INSTRUMENTATION CALL ---")
+            consoleprint_c("----------------------------------------")
+        end
+
 		if typeof_c(select_c(1, ...)) ~= "Instance" or typeof_c(select_c(2, ...)) ~= "string" then
 			return oldIndex(...)
 		end
