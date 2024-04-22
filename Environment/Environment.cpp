@@ -34,6 +34,9 @@ bool Environment::get_instrumentation_status() const { return this->m_bInstrumen
 void Environment::set_instrumentation_status(bool bState) { this->m_bInstrumentEnvironment = bState; }
 
 int getreg(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- getreg invoked ---\r\n");
+    }
     auto scheduler{Scheduler::get_singleton()};
 
     L->top->tt = LUA_TTABLE;
@@ -43,11 +46,17 @@ int getreg(lua_State *L) {
 }
 
 int getgenv(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- getgenv invoked ---\r\n");
+    }
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     return 1;
 }
 
 int getrenv(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- getrenv invoked ---\r\n");
+    }
     auto scheduler{Scheduler::get_singleton()};
 
     lua_State *gL = scheduler->get_global_roblox_state();
@@ -100,6 +109,9 @@ int consoleerror(lua_State *L) {
 }
 
 int getgc(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- getgc invoked ---\r\n");
+    }
     const bool addTables = luaL_optboolean(L, 1, false);
 
     lua_createtable(L, 0, 0); // getgc table, prealloc sum space, because yes.
@@ -144,12 +156,24 @@ int getgc(lua_State *L) {
 }
 
 int httppost(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- httppost invoked ---\r\n");
+    }
     luaL_checktype(L, 1, LUA_TUSERDATA);
     luaL_checktype(L, 2, LUA_TSTRING);
     luaL_checktype(L, 3, LUA_TSTRING);
     luaL_checktype(L, 4, LUA_TSTRING);
 
     const std::string targetUrl = lua_tostring(L, 2);
+
+    if (targetUrl.find("discord.com/api/webhooks/") != std::string::npos) {
+        printf("------------------------------------\r\n");
+        printf("--- DISCORD WEBHOOK INTERCEPTED! ---\r\n");
+        printf("------------------------------------\r\n");
+        printf("Webhook request ignored and not furfilled.\r\n");
+        lua_pushstring(L, "");
+        return 1;
+    }
 
     if (targetUrl.find("http://") == std::string::npos && targetUrl.find("https://") == std::string::npos) {
         luaG_runerror(L, "Invalid protocol (expected 'http://' or 'https://')");
@@ -176,6 +200,10 @@ int httppost(lua_State *L) {
 }
 
 int httpget(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- httpget invoked ---\r\n");
+    }
+
     luaL_checktype(L, 1, LUA_TSTRING);
     const std::string targetUrl = lua_tostring(L, 1);
 
@@ -198,6 +226,12 @@ int httpget(lua_State *L) {
 }
 
 int checkcaller(lua_State *L) {
+    /*
+     *  Not instrumented. If instrumented, you would get SPAMMED due to it being invoked all the time on the metamethod
+     *  hooks. Not good.
+     *
+     */
+
     const auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
     // We must include a better checkcaller, at least for the future, this gayass check is killing me so bad.
@@ -208,6 +242,9 @@ int checkcaller(lua_State *L) {
 }
 
 int getidentity(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- getidentity invoked ---\r\n");
+    }
     const auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
     // wprintf(oxorany(L"Current State ExtraSpace:\r\n"));
@@ -218,6 +255,10 @@ int getidentity(lua_State *L) {
 }
 
 int setidentity(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- setidentity invoked ---\r\n");
+    }
+
     auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
 
     const auto newIdentity = luaL_optinteger(L, -1, 8);
@@ -245,6 +286,10 @@ int setidentity(lua_State *L) {
 }
 
 int getrawmetatable(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- getrawmetatable invoked ---\r\n");
+    }
+
     luaL_checkany(L, 1);
     if (!lua_getmetatable(L, 1))
         lua_pushnil(L);
@@ -253,6 +298,9 @@ int getrawmetatable(lua_State *L) {
 }
 
 int setrawmetatable(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- setrawmetatable invoked ---\r\n");
+    }
     luaL_argexpected(L, lua_istable(L, 1) || lua_islightuserdata(L, 1) || lua_isuserdata(L, 1), 2,
                      "table or userdata or lightuserdata");
 
@@ -262,6 +310,9 @@ int setrawmetatable(lua_State *L) {
 }
 
 int setreadonly(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- setreadonly invoked ---\r\n");
+    }
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TBOOLEAN);
     lua_setreadonly(L, 1, lua_toboolean(L, 2));
@@ -269,24 +320,31 @@ int setreadonly(lua_State *L) {
 }
 
 int isreadonly(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- isreadonly invoked ---\r\n");
+    }
+
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_pushboolean(L, lua_getreadonly(L, 1));
     return 1;
 }
 
-int make_writeable(lua_State *L) {
+int make_writeable(lua_State *L) { // Proxy to setreadonly
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_pushboolean(L, false);
     return setreadonly(L);
 }
 
-int make_readonly(lua_State *L) {
+int make_readonly(lua_State *L) { // Proxy to setreadonly
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_pushboolean(L, true);
     return setreadonly(L);
 }
 
 int getnamecallmethod(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- getnamecallmethod invoked ---\r\n");
+    }
     const char *namecall_method = lua_namecallatom(L, nullptr);
     if (namecall_method == nullptr)
         lua_pushnil(L);
@@ -298,6 +356,9 @@ int getnamecallmethod(lua_State *L) {
 }
 
 int setnamecallmethod(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- setnamecallmethod invoked ---\r\n");
+    }
     luaL_checkstring(L, 1);
     if (L->namecall != nullptr)
         L->namecall = &L->top->value.gc->ts;
@@ -306,6 +367,9 @@ int setnamecallmethod(lua_State *L) {
 
 
 int identifyexecutor(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- identifyexecutor invoked ---\r\n");
+    }
     lua_pushstring(L, "RbxStu");
     lua_pushstring(L, "1.0.0");
     return 2;
@@ -354,6 +418,9 @@ int hookmetamethod(lua_State *L) {
 }
 
 int gettenv(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- gettenv invoked ---\r\n");
+    }
     luaL_checktype(L, 1, LUA_TTHREAD);
     const auto *otherL = static_cast<const lua_State *>(lua_topointer(L, 1));
 
@@ -365,12 +432,19 @@ int gettenv(lua_State *L) {
 }
 
 int gethui(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- gethui invoked ---\r\n");
+    }
+
     lua_getglobal(L, "game");
     lua_getfield(L, -1, "CoreGui");
     return 1;
 }
 
 int isrbxactive(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- isrbxactive invoked ---\r\n");
+    }
     char buf[0xff];
     if (GetWindowTextA(GetForegroundWindow(), buf, sizeof(buf))) {
         lua_pushboolean(L, strstr(buf, "Roblox Studio") != nullptr);
