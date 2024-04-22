@@ -14,7 +14,7 @@ void Communication::handshake() {
     this->m_pWebsocket->setOnMessageCallback([](const ix::WebSocketMessagePtr &message) {
         if (message->type == ix::WebSocketMessageType::Message) {
             auto workspace = message->str;
-            FilesystemLibrary
+            FilesystemLibrary::set_workspace_path(workspace);
         }
     });
 }
