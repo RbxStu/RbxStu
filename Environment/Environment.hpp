@@ -5,21 +5,18 @@
 #pragma once
 
 // Lua
-#include "Dependencies/Luau/VM/src/lapi.h"
 #include "Dependencies/Luau/VM/include/lua.h"
-#include "Dependencies/Luau/VM/include/lualib.h"
-
-// C++
-#include <string>
-#include <cstdint>
 
 
 class Environment {
-private:
     static Environment *sm_pSingleton;
+
+    bool m_bInstrumentEnvironment = false;
 
 public:
     static Environment *get_singleton();
 
+    [[nodiscard]] bool get_instrumentation_status() const;
+    void set_instrumentation_status(bool bState);
     int register_env(lua_State *L, bool useInitScript);
 };
