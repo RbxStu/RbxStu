@@ -570,7 +570,7 @@ getgenv_c().getrunningscripts = newcclosure_c(function()
 	return scripts
 end)
 
-getgenv_c().vsc_websocket = newcclosure_c(function()
+getgenv_c().vsc_websocket = (function()
 	if not game:IsLoaded() then
 		game.Loaded:Wait()
 	end
