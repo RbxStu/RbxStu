@@ -29,3 +29,17 @@ void FilesystemLibrary::register_environment(lua_State *L) {
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1);
 }
+
+void FilesystemLibrary::set_workspace_path(const std::string &workspacePath) {
+    if (workspacePath.length() == 0) {
+        throw std::runtime_error("Your workspace directory may not be that of an empty string.");
+    }
+
+    if (workspacePath.find("..")) {
+        throw std::runtime_error(
+                "You cannot set your workspace path to be any that contains \'..\' in it due to safety concerns.");
+    }
+
+
+    FilesystemLibrary::_workspacePath = workspacePath;
+}
