@@ -813,17 +813,32 @@ local illegal = {
 	"OpenVideosFolder",
 	"OpenScreenshotsFolder",
 	"GetRobuxBalance",
-	"PerformPurchase",
+	"PerformPurchase",  -- Solves PerformPurchaseV2
 	"PromptBundlePurchase",
 	"PromptNativePurchase",
 	"PromptProductPurchase",
 	"PromptPurchase",
+    "PromptGamePassPurchase",
+    "PromptRobloxPurchase",
 	"PromptThirdPartyPurchase",
 	"Publish",
 	"GetMessageId",
 	"OpenBrowserWindow",
+    "OpenNativeOverlay",
 	"RequestInternal",
 	"ExecuteJavaScript",
+    "EmitHybridEvent",
+    "AddCoreScriptLocal",
+    "HttpRequestAsync",
+    "ReportAbuse"   -- Avoid bans. | Handles ReportAbuseV3
+}
+
+local bannedServices = {
+    "BrowserService",
+    "HttpRbxApiService",
+    "OpenCloudService",
+    "MessageBusService",
+    "OmniRecommendationsService"
 }
 
 local oldNamecall
@@ -866,6 +881,15 @@ oldNamecall = hookmetamethod_c(
 				return error_c("This function has been disabled for security reasons.")
 			end
 		end
+
+        if string_match(string_lower(namecallName), string_lower("GetService")) then
+            -- GetService, check for banned services
+            for _, str in pairs_c(bannedServices) do
+			    if string_match(string_lower(select_c(2, ...)), string_lower(str)) then
+				    return error_c("This service has been removed for safety reasons.")
+			    end
+		    end
+        end
 
 		if namecallName == "HttpGetAsync" or namecallName == "HttpGet" then
 			return HttpGet_c(select_c(2, ...)) -- 1 self, 2 arg (url)
@@ -924,6 +948,13 @@ oldIndex = hookmetamethod_c(
 				return error_c("This function has been disabled for security reasons.")
 			end
 		end
+
+        if string_match(string_lower(idx), string_lower("GetService")) then
+            -- Hook GetService, this can be bypassed, but probably no one will bother to, and if they do... too bad.
+            return newcclosure(function(s, svc)
+                return s:GetService(svc)
+            end)
+        end
 
 		if idx == "HttpGetAsync" or idx == "HttpGet" then
 			return clonefunction_c(HttpGet_c)
