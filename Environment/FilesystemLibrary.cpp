@@ -9,11 +9,14 @@
 #include "ldebug.h"
 #include "lualib.h"
 
+std::string FilesystemLibrary::_workspacePath;
+
 int listfiles(lua_State *L) {
     const char *directory = luaL_checkstring(L, 1);
 
     if (strstr(directory, "..") != nullptr)
         luaG_runerrorL(L, "Using \'..\' is not permitted for safety reasons.");
+    return 1;
 }
 
 void FilesystemLibrary::register_environment(lua_State *L) {
