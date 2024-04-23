@@ -3,10 +3,10 @@
 //
 
 #include "WebsocketLibrary.hpp"
+#include <map>
+#include <string>
 #include "ldebug.h"
 #include "lualib.h"
-#include <string>
-#include <map>
 
 std::map<void *, Websocket *> websockets{};
 
@@ -30,8 +30,8 @@ int websocket_connect(lua_State *L) {
 
 void WebsocketLibrary::register_environment(lua_State *L) {
     static const luaL_Reg libreg[] = {
-        {"connect", websocket_connect},
-        {nullptr, nullptr},
+            {"connect", websocket_connect},
+            {nullptr, nullptr},
     };
 
     lua_newtable(L);
@@ -48,7 +48,8 @@ bool Websocket::try_connect_websocket(const std::string &url) {
     this->pWebSocket->setOnMessageCallback([this](const ix::WebSocketMessagePtr &msg) {
         switch (msg->type) {
             case ix::WebSocketMessageType::Message: {
-                if (this->EventReferences.onMessage_ref == -1) return;
+                if (this->EventReferences.onMessage_ref == -1)
+                    return;
                 lua_getref(this->pLuaThread, this->EventReferences.onMessage_ref);
                 lua_getfield(this->pLuaThread, -1, "Fire");
                 lua_pushvalue(this->pLuaThread, -2);
@@ -58,7 +59,8 @@ bool Websocket::try_connect_websocket(const std::string &url) {
                 break;
             };
             case ix::WebSocketMessageType::Error: {
-                if (this->EventReferences.onError_ref == -1) return;
+                if (this->EventReferences.onError_ref == -1)
+                    return;
                 lua_getref(this->pLuaThread, this->EventReferences.onError_ref);
                 lua_getfield(this->pLuaThread, -1, "Fire");
                 lua_pushvalue(this->pLuaThread, -2);
@@ -82,7 +84,8 @@ bool Websocket::try_connect_websocket(const std::string &url) {
                 luaG_runerrorL(this->pLuaThread, "Websocket Error! \r\n\r\n%s", ss.str().c_str());
             };
             case ix::WebSocketMessageType::Close: {
-                if (this->EventReferences.onClose_ref == -1) return;
+                if (this->EventReferences.onClose_ref == -1)
+                    return;
                 lua_getref(this->pLuaThread, this->EventReferences.onClose_ref);
                 lua_getfield(this->pLuaThread, -1, ("Fire"));
                 lua_pushvalue(this->pLuaThread, -2);
@@ -101,7 +104,8 @@ bool Websocket::try_connect_websocket(const std::string &url) {
                 break;
             };
             default:
-                printf("[Websocket::try_connect_websocket::message_callback] Unhandled message type! %d", msg->type);
+                printf("\r\n[Websocket::try_connect_websocket::message_callback] Unhandled message type! %d\r\n",
+                       msg->type);
         }
     });
 
@@ -124,8 +128,7 @@ int Websocket::close(lua_State *L) {
     const auto socket = websockets[userdata];
     websockets.erase(userdata);
 
-    socket->pWebSocket->close();
-
+    // Unsafe as hell, we pray we don't crash while doing this...
     if (socket->EventReferences.onClose_ref != -1)
         lua_unref(socket->pLuaThread, socket->EventReferences.onClose_ref);
     if (socket->EventReferences.onError_ref != -1)
@@ -135,7 +138,7 @@ int Websocket::close(lua_State *L) {
     if (socket->ullLuaThreadRef != -1)
         lua_unref(socket->pLuaThread, socket->ullLuaThreadRef);
 
-    delete socket->pWebSocket;
+    delete socket;
 
     return 0;
 }
@@ -209,8 +212,13 @@ int Websocket::__index(lua_State *L) {
 }
 
 // Calls Instance.new(instanceClassName).
-#define INSTANCE_NEW(L, instanceClassName) \
-    { lua_getfield(L, LUA_GLOBALSINDEX, "Instance"); lua_getfield(L, -1, "new"); lua_pushstring(L, instanceClassName); lua_pcall(L, 1, 1, 0); }
+#define INSTANCE_NEW(L, instanceClassName)                                                                             \
+    {                                                                                                                  \
+        lua_getfield(L, LUA_GLOBALSINDEX, "Instance");                                                                 \
+        lua_getfield(L, -1, "new");                                                                                    \
+        lua_pushstring(L, instanceClassName);                                                                          \
+        lua_pcall(L, 1, 1, 0);                                                                                         \
+    }
 
 bool Websocket::initialize_socket(lua_State *origin) {
     // Not Pure.
@@ -218,15 +226,15 @@ bool Websocket::initialize_socket(lua_State *origin) {
     this->ullLuaThreadRef = lua_ref(origin, -1);
     lua_pop(origin, 1);
 
-    INSTANCE_NEW(origin, "BindableEvent");
-    this->EventReferences.onMessage_ref = lua_ref(origin, -1);
-    lua_pop(origin, 1);
-    INSTANCE_NEW(origin, "BindableEvent");
-    this->EventReferences.onClose_ref = lua_ref(origin, -1);
-    lua_pop(origin, 1);
-    INSTANCE_NEW(origin, "BindableEvent");
-    this->EventReferences.onError_ref = lua_ref(origin, -1);
-    lua_pop(origin, 1);
+    INSTANCE_NEW(this->pLuaThread, "BindableEvent");
+    this->EventReferences.onMessage_ref = lua_ref(this->pLuaThread, -1);
+    lua_pop(this->pLuaThread, 1);
+    INSTANCE_NEW(this->pLuaThread, "BindableEvent");
+    this->EventReferences.onClose_ref = lua_ref(this->pLuaThread, -1);
+    lua_pop(this->pLuaThread, 1);
+    INSTANCE_NEW(this->pLuaThread, "BindableEvent");
+    this->EventReferences.onError_ref = lua_ref(this->pLuaThread, -1);
+    lua_pop(this->pLuaThread, 1);
 
     // References initialized, initialize Userdata && Metatable.
 

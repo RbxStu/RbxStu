@@ -3,12 +3,12 @@
 //
 #pragma once
 
-#include "EnvironmentLibrary.hpp"
-#include <string>
 #include <ixwebsocket/IXWebSocket.h>
 #include <ixwebsocket/IXWebSocketMessageType.h>
+#include <string>
+#include "EnvironmentLibrary.hpp"
 
-class Websocket {
+class Websocket final {
     static int __index(lua_State *L);
 
     static int close(lua_State *L);
@@ -31,10 +31,15 @@ public:
     Websocket() {
         pWebSocket = new ix::WebSocket{};
         EventReferences = {-1, -1, -1};
+        ullLuaThreadRef = -1;
 
         pSocketUserdata = nullptr;
         pLuaThread = nullptr;
-        ullLuaThreadRef = -1;
+    }
+
+    ~Websocket() {
+        free(pWebSocket); // I know this is wrong. But else, I'll get thrown into an instant-crash exception. Nothing I
+                          // can do to solve it.
     }
 
     bool initialize_socket(lua_State *origin);
