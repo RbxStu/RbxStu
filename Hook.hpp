@@ -16,7 +16,7 @@ class Hook {
 
     static void *pseudo2addr__detour(lua_State *L, int idx);
 
-    static void freeblock__detour(lua_State *L, int32_t sizeClass, void *block);
+    static void freeblock__detour(lua_State *L, uint32_t sizeClass, void *block);
 
 public:
     static Hook *get_singleton() noexcept;

@@ -16,15 +16,16 @@
 
 Hook *Hook::g_hookSingleton = nullptr;
 
-void Hook::freeblock__detour(lua_State *L, int32_t sizeClass, void *block) {
+void Hook::freeblock__detour(lua_State *L, uint32_t sizeClass, void *block) {
     if (reinterpret_cast<std::uintptr_t>(block) > 0x00007FF000000000) {
         wprintf(L"\r\n\r\n--- CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n");
         wprintf(L"---     SUSPICIOUS BLOCK ADDRESS CAUGHT    ---\r\n");
         wprintf(L"--- CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n");
         wprintf(L"lua state   : 0x%p\r\n", L);
-        wprintf(L"sizeClass   : %ull\r\n", sizeClass);
+        wprintf(L"sizeClass   : 0x%lx\r\n", sizeClass);
         wprintf(L"block       : 0x%p\r\n", block);
-        wprintf(L"*(block - 8): 0x%p\r\n", *reinterpret_cast<uintptr_t *>(reinterpret_cast<std::uintptr_t>(block) - 8));
+        wprintf(L"*(block - 8): 0x%p\r\n",
+                *reinterpret_cast<uintptr_t **>(reinterpret_cast<std::uintptr_t>(block) - 8));
         wprintf(L"\r\n\r\n--- END CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n");
 
         wprintf(L"\r\nIN ORDER TO AVOID A CRASH. THIS CALL HAS BEEN OMITTED DUE TO BLOCK APPEARING TO BE A STACK "
