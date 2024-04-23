@@ -533,10 +533,20 @@ int compareinstances(lua_State *L) {
     luaL_checktype(L, 1, LUA_TUSERDATA);
     luaL_checktype(L, 2, LUA_TUSERDATA);
 
-    lua_pushboolean(L, reinterpret_cast<std::uintptr_t>(lua_topointer(L, 1)) ==
-                               reinterpret_cast<std::uintptr_t>(lua_topointer(L, 2)));
+    lua_pushboolean(L, *static_cast<const std::uintptr_t *>(lua_touserdata(L, 1)) ==
+                               *static_cast<const std::uintptr_t *>(lua_touserdata(L, 2)));
 
     return 1;
+}
+
+int fireproximityprompt(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TUSERDATA);
+
+    const auto proximityPrompt = *static_cast<std::uintptr_t **>(lua_touserdata(L, 1));
+
+    RBX::Studio::Functions::fireproximityprompt(proximityPrompt);
+
+    return 0;
 }
 
 int Environment::register_env(lua_State *L, bool useInitScript) {
@@ -545,9 +555,13 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
             {"disable_environment_instrumentation", disable_environment_instrumentation},
             {"is_environment_instrumented", is_environment_instrumented},
 
+            {"fireproximityprompt", fireproximityprompt},
+
             {"isluau", isluau},
 
             {"compareinstances", compareinstances},
+            {"checkinstance", compareinstances},
+            {"checkinst", compareinstances},
 
             {"isrbxactive", isrbxactive},
             {"iswindowactive", isrbxactive},
@@ -778,6 +792,44 @@ local function reconstruct_table(t_)
 	return string.format("%s%s", welcomeMessage, reconstruction)
 end
 
+local __instanceList = nil
+
+local function get_instance_list()
+    local tmp = Instance.new("Part")
+    for idx, val in pairs(getreg()) do
+        if typeof_c(val) == "table" and rawget(val, "__mode") == "kvs" then
+            for idx_, inst in pairs(val) do
+                if inst == tmp then
+                    tmp:Destroy()
+                    return val  -- Instance list
+                end
+            end
+        end
+    end
+    tmp:Destroy()
+    consolewarn("[get_instance_list] Call failed. Cannot find instance list!")
+    return {}
+end
+
+task.delay(1, function()
+    __instanceList = get_instance_list()
+end)
+
+getgenv_c().cloneref = newcclosure_c(function(instance)
+    if typeof_c(instance) ~= "Instance" then
+        return error_c("Expected Instance as argument #1, got " .. typeof_c(instance) .. " instead!")
+    end
+
+    for idx, inInstanceList in pairs(__instanceList) do
+        if instance == inInstanceList then
+            __instanceList[idx] = nil
+            return instance
+        end
+    end
+
+    consolewarn("[clonereference] Call failed. Instance not found on instance list!")
+    return instance
+end)
 
 getgenv_c().GetObjects = newcclosure_c(function(assetId)
 	local oldId = getIdentity_c()
@@ -805,11 +857,10 @@ getgenv_c().require = newcclosure_c(function(moduleScript)
 	return r
 end)
 
-
 getgenv_c().getnilinstances = newcclosure_c(function()
 	local Instances = {}
 
-	for _, Object in getreg() do
+	for _, Object in pairs(__instanceList) do
 		if typeof_c(Object) == "Instance" and Object.Parent == nil then
 			table.insert(Instances, Object)
 		end
@@ -821,7 +872,7 @@ end)
 getgenv_c().getinstances = newcclosure_c(function()
 	local Instances = {}
 
-	for _, obj in getreg() do
+	for _, obj in pairs(__instanceList) do
 		if obj and typeof_c(obj) == "Instance" then
 			table.insert(Instances, obj)
 		end
@@ -830,26 +881,43 @@ getgenv_c().getinstances = newcclosure_c(function()
 	return Instances
 end)
 
+getgenv_c().getscripts = newcclosure_c(function()
+    local scripts = {}
+    for _, obj in pairs(__instanceList) do
+        if obj:IsA("ModuleScript") or obj:IsA("LocalScript") then table.insert(scripts, obj) end
+    end
+    return scripts
+end)
+
+getgenv_c().getloadedmodules = newcclosure_c(function()
+    local moduleScripts = {}
+    for _, obj in pairs(__instanceList) do
+        if obj:IsA("ModuleScript") then table.insert(moduleScripts, obj) end
+    end
+    return moduleScripts
+end)
+
 getgenv_c().getsenv = newcclosure_c(function(scr)
     if typeof(scr) ~= "Instance" then
         error("Expected script. Got ", typeof_c(script), " Instead.")
     end
 
-    local Instances = {}
-
-	for _, obj in getreg() do
-		if obj and typeof_c(obj) == "function" and table.find(getfenv(obj), scr)  then
-            return getfenv(obj)
+	for _, obj in pairs(getgc(false)) do
+		if obj and typeof_c(obj) == "function" then
+            local env = getfenv(obj)
+            if env.script == scr then
+                return getfenv(obj)
+            end
 		end
 	end
 
-	return Instances
+	return {}
 end)
 
 getgenv_c().getrunningscripts = newcclosure_c(function()
     local scripts = {}
 
-	for _, obj in getreg() do
+	for _, obj in pairs(__instanceList) do
 		if obj and typeof_c(obj) == "Instance" and obj:IsA("LocalScript") then
             table.insert(scripts, obj)
 		end
