@@ -873,7 +873,7 @@ getgenv_c().getinstances = newcclosure_c(function()
 	local Instances = {}
 
 	for _, obj in pairs(__instanceList) do
-		if obj and typeof_c(obj) == "Instance" then
+		if typeof_c(obj) == "Instance" then
 			table.insert(Instances, obj)
 		end
 	end
@@ -884,7 +884,7 @@ end)
 getgenv_c().getscripts = newcclosure_c(function()
     local scripts = {}
     for _, obj in pairs(__instanceList) do
-        if obj:IsA("ModuleScript") or obj:IsA("LocalScript") then table.insert(scripts, obj) end
+        if typeof_c(obj) == "Instance" and obj:IsA("ModuleScript") or obj:IsA("LocalScript") then table.insert(scripts, obj) end
     end
     return scripts
 end)
@@ -892,7 +892,7 @@ end)
 getgenv_c().getloadedmodules = newcclosure_c(function()
     local moduleScripts = {}
     for _, obj in pairs(__instanceList) do
-        if obj:IsA("ModuleScript") then table.insert(moduleScripts, obj) end
+        if typeof_c(obj) == "Instance" and obj:IsA("ModuleScript") then table.insert(moduleScripts, obj) end
     end
     return moduleScripts
 end)
