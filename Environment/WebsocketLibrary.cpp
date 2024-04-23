@@ -24,11 +24,18 @@ int websocket_connect(lua_State *L) {
         luaG_runerror(L, ("Invalid protocol (expected 'ws://' or 'wss://')"));
     }
     auto *socket = new Websocket{};
-    if (!socket->try_connect_websocket(targetUrl)) {
+    if (!socket->set_callback_and_url(targetUrl)) {
         luaG_runerror(L, ("Failed to connect to remote address!"));
     }
 
     socket->initialize_socket(L);
+    if (const auto con = socket->pWebSocket->connect(10); con.success) {
+        socket->pWebSocket->start();
+    } else {
+        printf("websocket.connect Failed (Code: %i): %s", con.http_status, con.errorStr.c_str());
+        luaG_runerror(L, ("Failed to connect to remote address!"));
+    }
+
     lua_pushthread(L);
     lua_ref(L, -1);
     lua_pop(L, 1);
@@ -50,79 +57,76 @@ void WebsocketLibrary::register_environment(lua_State *L) {
 }
 
 
-bool Websocket::try_connect_websocket(const std::string &url) {
+bool Websocket::set_callback_and_url(const std::string &url) {
     this->pWebSocket->setUrl(url);
     this->pWebSocket->setOnMessageCallback([this](const ix::WebSocketMessagePtr &msg) {
-        switch (msg->type) {
-            case ix::WebSocketMessageType::Message: {
-                if (this->EventReferences.onMessage_ref == -1)
-                    return;
-                lua_getref(this->pLuaThread, this->EventReferences.onMessage_ref);
-                lua_getfield(this->pLuaThread, -1, "Fire");
-                lua_pushvalue(this->pLuaThread, -2);
-                lua_pushlstring(this->pLuaThread, msg->str.c_str(), msg->str.size());
-                lua_pcall(this->pLuaThread, 2, 0, 0);
-                this->pLuaThread->top = this->pLuaThread->base;
-                break;
-            };
-            case ix::WebSocketMessageType::Error: {
-                if (this->EventReferences.onError_ref == -1)
-                    return;
-                lua_getref(this->pLuaThread, this->EventReferences.onError_ref);
-                lua_getfield(this->pLuaThread, -1, "Fire");
-                lua_pushvalue(this->pLuaThread, -2);
-                lua_pushlstring(this->pLuaThread, msg->str.c_str(), msg->str.size());
-                lua_pcall(this->pLuaThread, 2, 0, 0);
-                this->pLuaThread->top = this->pLuaThread->base;
+        try {
+            switch (msg->type) {
+                case ix::WebSocketMessageType::Message: {
+                    if (this->EventReferences.onMessage_ref == -1)
+                        return;
+                    lua_getref(this->pLuaThread, this->EventReferences.onMessage_ref);
+                    lua_getfield(this->pLuaThread, -1, "Fire");
+                    lua_pushvalue(this->pLuaThread, -2);
+                    lua_pushlstring(this->pLuaThread, msg->str.c_str(), msg->str.size());
+                    lua_pcall(this->pLuaThread, 2, 0, 0);
+                    this->pLuaThread->top = this->pLuaThread->base;
+                    break;
+                };
+                case ix::WebSocketMessageType::Error: {
+                    if (this->EventReferences.onError_ref == -1)
+                        return;
+                    lua_getref(this->pLuaThread, this->EventReferences.onError_ref);
+                    lua_getfield(this->pLuaThread, -1, "Fire");
+                    lua_pushvalue(this->pLuaThread, -2);
+                    lua_pushlstring(this->pLuaThread, msg->str.c_str(), msg->str.size());
+                    lua_pcall(this->pLuaThread, 2, 0, 0);
+                    this->pLuaThread->top = this->pLuaThread->base;
 
-                std::stringstream ss;
-                ss << "Status Code: " << msg->errorInfo.http_status << std::endl;
-                ss << "Error: " << msg->errorInfo.reason << std::endl;
-                ss << "retries: " << msg->errorInfo.retries << std::endl;
-                ss << "Wait time(ms): " << msg->errorInfo.wait_time << std::endl;
+                    std::stringstream ss;
+                    ss << "Status Code: " << msg->errorInfo.http_status << std::endl;
+                    ss << "Error: " << msg->errorInfo.reason << std::endl;
+                    ss << "retries: " << msg->errorInfo.retries << std::endl;
+                    ss << "Wait time(ms): " << msg->errorInfo.wait_time << std::endl;
 
-                if (this->EventReferences.onClose_ref != -1)
-                    lua_unref(this->pLuaThread, this->EventReferences.onClose_ref);
-                if (this->EventReferences.onMessage_ref != -1)
-                    lua_unref(this->pLuaThread, this->EventReferences.onMessage_ref);
-                if (this->ullLuaThreadRef != -1)
-                    lua_unref(this->pLuaThread, this->ullLuaThreadRef);
+                    if (this->EventReferences.onClose_ref != -1)
+                        lua_unref(this->pLuaThread, this->EventReferences.onClose_ref);
+                    if (this->EventReferences.onMessage_ref != -1)
+                        lua_unref(this->pLuaThread, this->EventReferences.onMessage_ref);
+                    if (this->ullLuaThreadRef != -1)
+                        lua_unref(this->pLuaThread, this->ullLuaThreadRef);
 
-                luaG_runerrorL(this->pLuaThread, "Websocket Error! \r\n\r\n%s", ss.str().c_str());
-            };
-            case ix::WebSocketMessageType::Close: {
-                if (this->EventReferences.onClose_ref == -1)
-                    return;
-                lua_getref(this->pLuaThread, this->EventReferences.onClose_ref);
-                lua_getfield(this->pLuaThread, -1, ("Fire"));
-                lua_pushvalue(this->pLuaThread, -2);
-                lua_pcall(this->pLuaThread, 1, 0, 0);
-                this->pLuaThread->top = this->pLuaThread->base;
+                    luaG_runerrorL(this->pLuaThread, "Websocket Error! \r\n\r\n%s", ss.str().c_str());
+                };
+                case ix::WebSocketMessageType::Close: {
+                    if (this->EventReferences.onClose_ref == -1)
+                        return;
+                    lua_getref(this->pLuaThread, this->EventReferences.onClose_ref);
+                    lua_getfield(this->pLuaThread, -1, ("Fire"));
+                    lua_pushvalue(this->pLuaThread, -2);
+                    lua_pcall(this->pLuaThread, 1, 0, 0);
+                    this->pLuaThread->top = this->pLuaThread->base;
 
-                if (this->EventReferences.onClose_ref != -1)
-                    lua_unref(this->pLuaThread, this->EventReferences.onClose_ref);
-                if (this->EventReferences.onError_ref != -1)
-                    lua_unref(this->pLuaThread, this->EventReferences.onError_ref);
-                if (this->EventReferences.onMessage_ref != -1)
-                    lua_unref(this->pLuaThread, this->EventReferences.onMessage_ref);
-                if (this->ullLuaThreadRef != -1)
-                    lua_unref(this->pLuaThread, this->ullLuaThreadRef);
+                    if (this->EventReferences.onClose_ref != -1)
+                        lua_unref(this->pLuaThread, this->EventReferences.onClose_ref);
+                    if (this->EventReferences.onError_ref != -1)
+                        lua_unref(this->pLuaThread, this->EventReferences.onError_ref);
+                    if (this->EventReferences.onMessage_ref != -1)
+                        lua_unref(this->pLuaThread, this->EventReferences.onMessage_ref);
+                    if (this->ullLuaThreadRef != -1)
+                        lua_unref(this->pLuaThread, this->ullLuaThreadRef);
 
-                break;
-            };
-            default:
-                printf("\r\n[Websocket::try_connect_websocket::message_callback] Unhandled message type! %d\r\n",
-                       msg->type);
+                    break;
+                };
+                default:
+                    printf("\r\n[Websocket::try_connect_websocket::message_callback] Unhandled message type! %d\r\n",
+                           msg->type);
+            }
+        } catch (const std::exception &ex) {
+            printf("\r\n[WebSocket::try_connect_websocket] Message processing failed. Reason: %s!\r\n", ex.what());
         }
     });
-
-    if (const auto con = this->pWebSocket->connect(10); con.success) {
-        this->pWebSocket->start();
-        return true;
-    } else {
-        printf("websocket.connect Failed (Code: %i): %s", con.http_status, con.errorStr.c_str());
-        return false;
-    }
+    return true;
 }
 
 int Websocket::close(lua_State *L) {

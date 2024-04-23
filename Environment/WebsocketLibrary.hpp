@@ -44,7 +44,7 @@ public:
 
     bool initialize_socket(lua_State *origin);
 
-    bool try_connect_websocket(const std::string &url);
+    bool set_callback_and_url(const std::string &url);
 };
 
 class WebsocketLibrary final : public EnvironmentLibrary {
