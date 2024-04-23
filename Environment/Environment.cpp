@@ -529,14 +529,25 @@ int setclipboard(lua_State *L) {
     return 1;
 }
 
+int compareinstances(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TUSERDATA);
+    luaL_checktype(L, 2, LUA_TUSERDATA);
+
+    lua_pushboolean(L, reinterpret_cast<std::uintptr_t>(lua_topointer(L, 1)) ==
+                               reinterpret_cast<std::uintptr_t>(lua_topointer(L, 2)));
+
+    return 1;
+}
+
 int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
             {"enable_environment_instrumentation", enable_environment_instrumentation},
             {"disable_environment_instrumentation", disable_environment_instrumentation},
             {"is_environment_instrumented", is_environment_instrumented},
 
-
             {"isluau", isluau},
+
+            {"compareinstances", compareinstances},
 
             {"isrbxactive", isrbxactive},
             {"iswindowactive", isrbxactive},
@@ -586,8 +597,6 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
             {"rconsolewarn", consolewarn},
             {"consoleerror", consoleerror},
             {"rconsoleerror", consoleerror},
-            {"isrbxactive", isrbxactive},
-            {"isgameactive", isrbxactive},
 
             //("hookmetamethod",    hookmetamethod},
             {"HttpGet", httpget},
