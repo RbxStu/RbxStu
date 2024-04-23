@@ -457,6 +457,9 @@ int isrbxactive(lua_State *L) {
 }
 
 int isluau(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- isluau invoked ---\r\n");
+    }
     lua_pushboolean(L, true);
     return 1;
 }
@@ -476,6 +479,56 @@ int is_environment_instrumented(lua_State *L) {
     return 1;
 }
 
+int getclipboard(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- getclipboard invoked ---\r\n");
+        printf("Returned a false clipboard for security reasons (Call instrumentation only!)\r\n");
+        lua_pushstring(L, "");
+        return 1;
+    }
+    if (!OpenClipboard(nullptr)) {
+        lua_pushnil(L);
+        return 0;
+    }
+
+    lua_pushstring(L, static_cast<const char *>(GetClipboardData(CF_TEXT)));
+    CloseClipboard();
+    return 1;
+}
+
+int setclipboard(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- setclipboard invoked ---\r\n");
+    }
+    const char *newClipboard = lua_tostring(L, 1);
+
+    if (!OpenClipboard(nullptr)) {
+        lua_pushnil(L);
+        return 0;
+    }
+
+    EmptyClipboard();
+    const auto allocSize = strlen(newClipboard) + 1;
+    const HGLOBAL newMemory = GlobalAlloc(GMEM_MOVEABLE, allocSize);
+    if (newMemory == nullptr) { // Rip windows, malloc
+        CloseClipboard();
+        return 0;
+    }
+
+    if (!GlobalLock(newMemory)) {
+        CloseClipboard();
+        GlobalFree(newMemory);
+        return 0;
+    }
+
+    std::memcpy(newMemory, newClipboard, allocSize);
+    GlobalUnlock(newMemory);
+    SetClipboardData(CF_TEXT, newMemory);
+    CloseClipboard();
+    GlobalFree(newMemory);
+    return 1;
+}
+
 int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
             {"enable_environment_instrumentation", enable_environment_instrumentation},
@@ -484,7 +537,16 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
 
 
             {"isluau", isluau},
+
             {"isrbxactive", isrbxactive},
+            {"iswindowactive", isrbxactive},
+            {"isgameactive", isrbxactive},
+
+            {"setclipboard", setclipboard},
+            {"toclipboard", setclipboard},
+            {"setrbxclipboard", setclipboard},
+
+            {"getclipboard", getclipboard},
 
             {"getreg", getreg},
             {"getgc", getgc},

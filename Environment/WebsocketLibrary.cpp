@@ -5,6 +5,8 @@
 #include "WebsocketLibrary.hpp"
 #include <map>
 #include <string>
+
+#include "Environment.hpp"
 #include "ldebug.h"
 #include "lualib.h"
 
@@ -13,6 +15,11 @@ std::map<void *, Websocket *> websockets{};
 int websocket_connect(lua_State *L) {
     luaL_checktype(L, 1, LUA_TSTRING);
     const std::string targetUrl = lua_tostring(L, 1);
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- WebSocket::connect invoked ---\r\n");
+        printf("WebSocket connecting to \'%s\'...\r\n", targetUrl.c_str());
+    }
+
     if (targetUrl.find("ws://") == std::string::npos && targetUrl.find("wss://") == std::string::npos) {
         luaG_runerror(L, ("Invalid protocol (expected 'ws://' or 'wss://')"));
     }
@@ -119,6 +126,9 @@ bool Websocket::try_connect_websocket(const std::string &url) {
 }
 
 int Websocket::close(lua_State *L) {
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- WebSocket::close invoked ---\r\n");
+    }
     luaL_checktype(L, 1, LUA_TUSERDATA);
     void *userdata = lua_touserdata(L, 1);
     if (!websockets.contains(userdata)) {
@@ -148,6 +158,10 @@ int Websocket::send(lua_State *L) {
     luaL_checktype(L, 2, LUA_TSTRING);
     void *userdata = lua_touserdata(L, 1);
     const std::string msg = lua_tostring(L, 2);
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- WebSocket::send invoked ---\r\n");
+        printf("Payload sent by websocket: \'%s\'\r\n", msg.c_str());
+    }
     if (!websockets.contains(userdata)) {
         luaG_runerror(L, ("Socket has been freed/not initialized."));
     }
@@ -185,6 +199,11 @@ int Websocket::__index(lua_State *L) {
     luaL_checktype(L, 2, LUA_TSTRING);
     void *userdata = lua_touserdata(L, 1);
     const char *key = lua_tostring(L, 2);
+
+    if (Environment::get_singleton()->get_instrumentation_status()) {
+        printf("--- WebSocket::__index invoked ---\r\n");
+        printf("Indexed with key: \'%s\'\r\n", key);
+    }
 
     if (!websockets.contains(userdata)) {
         luaG_runerror(L, "Socket has been freed/not initialized.");
