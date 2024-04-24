@@ -8,6 +8,10 @@
     {
       "name": "zlib",
       "platform": "(windows & x64)"
+    },
+    {
+      "name": "lz4",
+      "platform": "(windows & x64)"
     }
   ]
 }

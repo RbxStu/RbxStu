@@ -58,6 +58,9 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Dependencies/oxorany")
 # IXWebSocket
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Dependencies/IXWebSocket")
 
+find_package(lz4 CONFIG REQUIRED)
+find_package(OpenSSL CONFIG REQUIRED)
+
 target_link_libraries(${PROJECT_NAME}
         PRIVATE
         # minhook
@@ -81,5 +84,7 @@ target_link_libraries(${PROJECT_NAME}
         Dbghelp.lib
 
         ixwebsocket
+
+        lz4::lz4
 )
 
