@@ -10,6 +10,7 @@
 #include "Execution.hpp"
 #include "Utilities.hpp"
 #include "WebsocketLibrary.hpp"
+#include <lz4.h>
 
 #include "ClosureLibrary.hpp"
 #include "DebugLibrary.hpp"
@@ -739,11 +740,44 @@ int request(lua_State *L) { // TODO: Implement HWID header.
     return 1;
 }
 
+int lz4compress(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TSTRING);
+    const char *data = lua_tostring(L, 1);
+    int iMaxCompressedSize = LZ4_compressBound(strlen(data));
+    const auto pszCompressedBuffer = new char[iMaxCompressedSize];
+    memset(pszCompressedBuffer, 0, iMaxCompressedSize);
+
+    LZ4_compress(data, pszCompressedBuffer, strlen(data));
+    lua_pushlstring(L, pszCompressedBuffer, iMaxCompressedSize);
+    return 1;
+}
+
+int lz4decompress(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TSTRING);
+    luaL_checktype(L, 2, LUA_TNUMBER);
+
+    const char *data = lua_tostring(L, 1);
+    const int data_size = lua_tointeger(L, 2);
+
+    auto *pszUncompressedBuffer = new char[data_size];
+
+    memset(pszUncompressedBuffer, 0, data_size);
+
+    LZ4_uncompress(data, pszUncompressedBuffer, data_size);
+    lua_pushlstring(L, pszUncompressedBuffer, data_size);
+    return 1;
+}
+
+
 int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
             {"enable_environment_instrumentation", enable_environment_instrumentation},
             {"disable_environment_instrumentation", disable_environment_instrumentation},
             {"is_environment_instrumented", is_environment_instrumented},
+
+            {"lz4decompress", lz4decompress},
+            {"lz4compress", lz4compress},
+
 
             {"fireproximityprompt", fireproximityprompt},
 
@@ -830,7 +864,6 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_setfield(L, -2, "_G");
-    lua_pop(L, 1);
 
     lua_newtable(L); // Set Http table.
     lua_pushcclosure(L, request, "http.request", 0);
