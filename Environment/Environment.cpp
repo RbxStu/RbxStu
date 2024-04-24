@@ -549,6 +549,196 @@ int fireproximityprompt(lua_State *L) {
     return 0;
 }
 
+enum HttpRequestMethods { UnknownMethod = -1, Get, Head, Post, Put, Delete, Options };
+
+int request(lua_State *L) { // TODO: Implement HWID header.
+    luaL_checktype(L, 1, LUA_TTABLE);
+
+    lua_getfield(L, 1, "Url");
+    if (lua_type(L, -1) != LUA_TSTRING)
+        luaG_runerror(L, "No URL field on request table!");
+
+    std::string url = lua_tostring(L, -1);
+
+    if (url.find("http://") == std::string::npos && url.find("https://") == std::string::npos) {
+        luaG_runerror(L, "Invalid protocol (expected 'http://' or 'https://')");
+    }
+
+    lua_pop(L, 1);
+
+    auto httpMethod = Get;
+    lua_getfield(L, 1, "Method");
+    if (lua_type(L, -1) == LUA_TSTRING) {
+        std::string method = luaL_checkstring(L, -1);
+        std::ranges::transform(method, method.begin(), tolower);
+
+        if (strcmp(method.c_str(), "get") == 0) { // Nasty ifs, I cannot do a switcheroo.
+            httpMethod = Get;
+        } else if (strcmp(method.c_str(), "head") == 0) {
+            httpMethod = Head;
+        } else if (strcmp(method.c_str(), "post") == 0) {
+            httpMethod = Post;
+        } else if (strcmp(method.c_str(), "put") == 0) {
+            httpMethod = Put;
+        } else if (strcmp(method.c_str(), "delete") == 0) {
+            httpMethod = Delete;
+        } else if (strcmp(method.c_str(), "options") == 0) {
+            httpMethod = Options;
+        } else {
+            httpMethod = UnknownMethod;
+        }
+
+        if (httpMethod == UnknownMethod)
+            luaG_runerror(L, "HTTP Method '%s' is not a valid HTTP method!", method.c_str());
+    }
+    lua_pop(L, 1);
+
+    cpr::Header headers;
+
+    lua_getfield(L, 1, "Headers");
+    if (lua_type(L, -1) == LUA_TTABLE) {
+        lua_pushnil(L);
+
+        while (lua_next(L, -2)) {
+            if (lua_type(L, -2) != LUA_TSTRING || lua_type(L, -1) != LUA_TSTRING)
+                luaG_runerror(L, "'Headers' table must be a dictionary of string keys and string values.");
+
+            std::string headerKey = luaL_checkstring(L, -2);
+            auto headerCopy = std::string(headerKey);
+            std::ranges::transform(headerKey, headerKey.begin(), tolower);
+
+            if (headerCopy == "content-length")
+                luaG_runerror(L, "'Content-Length' cannot be overwritten.");
+
+            std::string headerValue = luaL_checkstring(L, -1);
+            headers.insert({headerKey, headerValue});
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
+    cpr::Cookies cookies;
+    lua_getfield(L, 1, "Cookies");
+
+    if (lua_type(L, -1) == LUA_TTABLE) {
+        lua_pushnil(L);
+
+        while (lua_next(L, -2)) {
+            if (lua_type(L, -2) != LUA_TSTRING || lua_type(L, -1) != LUA_TSTRING)
+                luaG_runerror(L, "'Cookies' table must be a dictionary of string keys and string values.");
+
+
+            std::string cookieKey = luaL_checkstring(L, -2);
+            std::string cookieValue = luaL_checkstring(L, -1);
+
+            cookies.emplace_back(cpr::Cookie{cookieKey, cookieValue});
+            lua_pop(L, 1);
+        }
+    }
+
+    lua_pop(L, 1);
+
+    auto useCustomUserAgent = false;
+    for (auto &[headerKey, headerValue]: headers) {
+        auto headerName = headerKey;
+        std::ranges::transform(headerName, headerName.begin(), tolower);
+
+        if (headerName == "user-agent")
+            useCustomUserAgent = true;
+    }
+
+    if (!useCustomUserAgent)
+        headers.insert({"User-Agent", "RbxStu"});
+
+    std::string body;
+    lua_getfield(L, 1, "Body");
+    if (lua_type(L, -1) == LUA_TTABLE) {
+        if (httpMethod == Get || httpMethod == Head)
+            luaG_runerror(L, "'Body' is not a valid member when doing GET or HEAD requests.");
+        size_t bodySize;
+        const auto bodyCstr = luaL_checklstring(L, -1, &bodySize);
+        body = std::string(bodyCstr, bodySize);
+    }
+
+    lua_pop(L, 1);
+
+    cpr::Response response;
+
+    switch (httpMethod) {
+        case Get: {
+            response = cpr::Get(cpr::Url{url}, cookies, headers);
+            break;
+        }
+
+        case Head: {
+            response = cpr::Head(cpr::Url{url}, cookies, headers);
+            break;
+        }
+
+        case Post: {
+            response = cpr::Post(cpr::Url{url}, cpr::Body{body}, cookies, headers);
+            break;
+        }
+
+        case Put: {
+            response = cpr::Put(cpr::Url{url}, cpr::Body{body}, cookies, headers);
+            break;
+        }
+
+        case Delete: {
+            response = cpr::Delete(cpr::Url{url}, cpr::Body{body}, cookies, headers);
+            break;
+        }
+
+        case Options: {
+            response = cpr::Options(cpr::Url{url}, cpr::Body{body}, cookies, headers);
+            break;
+        }
+
+        default:
+            luaG_runerror(L, "Unsupported request type!");
+    }
+
+    lua_newtable(L);
+
+    lua_pushboolean(L, HttpStatus::IsSuccessful(response.status_code));
+    lua_setfield(L, -2, "Success");
+
+    lua_pushinteger(L, response.status_code);
+    lua_setfield(L, -2, "StatusCode");
+
+    std::string phrase = HttpStatus::ReasonPhrase(response.status_code);
+    lua_pushlstring(L, phrase.c_str(), phrase.size());
+    lua_setfield(L, -2, "StatusMessage");
+
+    lua_newtable(L);
+
+    for (const auto &[header, value]: response.header) {
+        lua_pushlstring(L, header.c_str(), header.size());
+        lua_pushlstring(L, value.c_str(), value.size());
+
+        lua_settable(L, -3);
+    }
+
+    lua_setfield(L, -2, "Headers");
+
+    lua_newtable(L);
+
+    for (const auto &cookie: response.cookies) {
+        lua_pushlstring(L, cookie.GetName().c_str(), cookie.GetName().size());
+        lua_pushlstring(L, cookie.GetValue().c_str(), cookie.GetValue().size());
+
+        lua_settable(L, -3);
+    }
+
+    lua_setfield(L, -2, "Cookies");
+
+    lua_pushlstring(L, response.text.c_str(), response.text.size());
+    lua_setfield(L, -2, "Body");
+
+    return 1;
+}
+
 int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
             {"enable_environment_instrumentation", enable_environment_instrumentation},
@@ -558,6 +748,9 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
             {"fireproximityprompt", fireproximityprompt},
 
             {"isluau", isluau},
+
+            {"request", request},
+            {"http_request", request},
 
             {"compareinstances", compareinstances},
             {"checkinstance", compareinstances},
@@ -637,6 +830,14 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_setfield(L, -2, "_G");
+    lua_pop(L, 1);
+
+    lua_newtable(L); // Set Http table.
+    lua_pushcclosure(L, request, "http.request", 0);
+    lua_setfield(L, -2, "request");
+    lua_setreadonly(L, -1, true);
+    lua_setfield(L, LUA_GLOBALSINDEX, "http");
+    lua_pop(L, 1);
 
     auto closuresLibrary = ClosureLibrary{};
     auto websocketsLibrary = WebsocketLibrary{};
