@@ -20,7 +20,7 @@ namespace RBX::Studio::Offsets {
     const static std::uintptr_t _luaH_dummynode = RebaseAddress(0x1466c5608);
 
     // The way we get our lua state is the classic, hooking.
-    const static std::uintptr_t pseudo2addr = RebaseAddress(0x142fef910);
+    const static std::uintptr_t pseudo2addr = RebaseAddress(0x14307f7f0); // updated -- shadow
 
     // search for coroutine.wrap. Inside there will be a lua_pushthread and lua_newthread call. Inside lua_newthread luaE_newthread is called.
     const static std::uintptr_t rluaE_newthread = RebaseAddress(0x142ff0e00);
@@ -29,7 +29,7 @@ namespace RBX::Studio::Offsets {
     // search for coroutine.wrap. Inside there will be a lua_pushthread and lua_newthread call.
     const static std::uintptr_t rlua_newthread = RebaseAddress(0x142fed880);
     // search for "defer"
-    const static std::uintptr_t rTask_defer = RebaseAddress(0x141d0d280);
+    const static std::uintptr_t rTask_defer = RebaseAddress(0x141d77ef0); // updated -- shadow
 
     // Get into luaC_step, then into gcstep and then into luaH_free, which inside has the call you need to freestack (or luaM_freearray I don't remember)
     // Which inside calls freeblock.
