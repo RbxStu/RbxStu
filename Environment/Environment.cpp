@@ -3,6 +3,7 @@
 //
 #include "Environment.hpp"
 #include <iostream>
+#include <lz4.h>
 #include "Closures.hpp"
 #include "Dependencies/HttpStatus.hpp"
 #include "Dependencies/Termcolor.hpp"
@@ -10,7 +11,6 @@
 #include "Execution.hpp"
 #include "Utilities.hpp"
 #include "WebsocketLibrary.hpp"
-#include <lz4.h>
 
 #include "ClosureLibrary.hpp"
 #include "DebugLibrary.hpp"
@@ -768,6 +768,13 @@ int lz4decompress(lua_State *L) {
     return 1;
 }
 
+int compile_to_bytecode(lua_State *L) {
+    luaL_checkstring(L, 1);
+    // In roblox studio, all scripts aren't compiled, because of this, we are forced to grab
+    // the source, and compile it to luau bytecode for getscriptbytecode. An ugly hack.
+    lua_pushstring(L, Execution::get_singleton()->compile_to_bytecode(lua_tostring(L, 1)).c_str());
+    return 1;
+}
 
 int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
@@ -843,6 +850,8 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
             {"HttpGet", httpget},
             {"HttpPost", httppost},
 
+            {"compile_to_bytecode", compile_to_bytecode},
+
             {"__SCHEDULER_STEPPED__HOOK", (static_cast<lua_CFunction>([](lua_State *L) -> int {
                  if (auto *scheduler{Scheduler::get_singleton()}; scheduler->is_initialized()) {
                      scheduler->scheduler_step(scheduler->get_global_executor_state());
@@ -910,6 +919,7 @@ local is_environment_instrumented_c = clonefunction_c(is_environment_instrumente
 local consoleprint_c = clonefunction_c(consoleprint)
 local consolewarn_c = clonefunction_c(consolewarn)
 local consoleerror_c = clonefunction_c(consoleerror)
+local compile_to_bytecode_c = clonefunction_c(compile_to_bytecode)
 
 print("setting genv")
 local function reconstruct_table(t_)
@@ -1028,6 +1038,7 @@ end
 
 local __instanceList = nil
 
+
 local function get_instance_list()
     local tmp = Instance.new("Part")
     for idx, val in pairs(getreg()) do
@@ -1047,6 +1058,18 @@ end
 
 task.delay(1, function()
     __instanceList = get_instance_list()
+end)
+
+getgenv_c().getscripthash = newcclosure_c(function(instance)
+    if typeof_c(instance) ~= "Instance" then
+        return error_c("Expected Instance as argument #1, got " .. typeof_c(instance) .. " instead!")
+    end
+
+    if not instance:IsA("LocalScript") and not instance:IsA("ModuleScript") then
+        return error_c("Expected ModuleScript or LocalScript as argument #1, got " .. instance.ClassName .. " instead!")
+    end
+
+    return instance:GetHash() -- https://robloxapi.github.io/ref/class/Script.html#member-GetHash
 end)
 
 getgenv_c().cloneref = newcclosure_c(function(instance)
@@ -1118,7 +1141,7 @@ end)
 getgenv_c().getscripts = newcclosure_c(function()
     local scripts = {}
     for _, obj in pairs(__instanceList) do
-        if typeof_c(obj) == "Instance" and obj:IsA("ModuleScript") or obj:IsA("LocalScript") then table.insert(scripts, obj) end
+        if typeof_c(obj) == "Instance" and (obj:IsA("ModuleScript") or obj:IsA("LocalScript")) then table.insert(scripts, obj) end
     end
     return scripts
 end)
@@ -1129,6 +1152,46 @@ getgenv_c().getloadedmodules = newcclosure_c(function()
         if typeof_c(obj) == "Instance" and obj:IsA("ModuleScript") then table.insert(moduleScripts, obj) end
     end
     return moduleScripts
+end)
+
+getgenv_c().getscriptbytecode = newcclosure_c(function(scr)
+    if typeof(scr) ~= "Instance" or not (scr:IsA("ModuleScript") or scr:IsA("LocalScript")) then
+        error("Expected script. Got ", typeof_c(script), " Instead.")
+    end
+
+	local old = getIdentity_c()
+	setIdentity_c(7)
+    local b = compile_to_bytecode_c(scr.Source)
+	setIdentity_c(old)
+
+    return b
+end)
+
+getgenv_c().getscriptclosure = newcclosure_c(function(scr)
+    if typeof(scr) ~= "Instance" then
+        error("Expected script. Got ", typeof_c(script), " Instead.")
+    end
+
+    local candidates = {}
+
+	for _, obj in pairs(getgc(false)) do
+		if obj and typeof_c(obj) == "function" then
+            local env = getfenv(obj)
+            if env.script == scr then
+                table.insert(candidates, obj)
+            end
+		end
+	end
+
+    local mostProbableScriptClosure = candidates[1]
+
+    for i, v in candidates do
+        if #getfenv(v) < #getfenv(mostProbableScriptClosure) then
+            mostProbableScriptClosure = v
+        end
+    end
+
+	return mostProbableScriptClosure
 end)
 
 getgenv_c().getsenv = newcclosure_c(function(scr)
@@ -1353,9 +1416,7 @@ oldIndex = hookmetamethod_c(
 
         printf("[Environment::register_env] Attempting to initialize custom scheduler...\r\n");
         const std::string schedulerHook = (R"(
-            game:GetService("RunService").Stepped:Connect(function()
-                __SCHEDULER_STEPPED__HOOK()
-            end)
+            game:GetService("RunService").Stepped:Connect(clonefunction(__SCHEDULER_STEPPED__HOOK))
         )");
         Scheduler::get_singleton()->schedule_job(schedulerHook);
         Scheduler::get_singleton()->scheduler_step(Scheduler::get_singleton()->get_global_executor_state());
