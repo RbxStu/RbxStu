@@ -34,6 +34,29 @@ void Hook::freeblock__detour(lua_State *L, uint32_t sizeClass, void *block) {
         return;
     }
 
+    if (!Module::Utilities::is_pointer_valid(static_cast<std::uintptr_t *>(block)) ||
+        !Module::Utilities::is_pointer_valid(
+                reinterpret_cast<std::uintptr_t **>(reinterpret_cast<std::uintptr_t>(block) - 8)) ||
+        !Module::Utilities::is_pointer_valid(*reinterpret_cast<std::uintptr_t **>(
+                reinterpret_cast<std::uintptr_t>(block) -
+                8))) { // It is actually a lua_Page*, but the type is not exposed on Luaus' lgc.h.
+        wprintf(L"\r\n\r\n--- CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n");
+        wprintf(L"---     SUSPICIOUS BLOCK ADDRESS CAUGHT    ---\r\n");
+        wprintf(L"--- CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n");
+        wprintf(L"lua state   : 0x%p\r\n", L);
+        wprintf(L"sizeClass   : 0x%lx\r\n", sizeClass);
+        wprintf(L"block       : 0x%p\r\n", block);
+        wprintf(L"*(block - 8): 0x%p\r\n",
+                *reinterpret_cast<uintptr_t **>(reinterpret_cast<std::uintptr_t>(block) - 8));
+        wprintf(L"\r\n\r\n--- END CALL INSTRUMENTATION ::freeblock @ RBX ---\r\n\r\n");
+
+        wprintf(L"\r\nIN ORDER TO AVOID A CRASH. THIS CALL HAS BEEN OMITTED DUE TO BLOCK APPEARING TO BE AN INVALID "
+                L"POINTER!"
+                L" POSSIBLE MEMORY LEAK MAY INSUE!\r\n");
+
+        return;
+    }
+
 
     return Hook::get_singleton()->get_freeblock_original()(L, sizeClass, block);
 }
