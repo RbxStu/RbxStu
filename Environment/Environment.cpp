@@ -776,6 +776,24 @@ int compile_to_bytecode(lua_State *L) {
     return 1;
 }
 
+int setfpscap(lua_State *L) {
+    luaL_checkinteger(L, 1);
+
+    auto num = luaL_optinteger(L, 1, 60);
+
+    if (num <= 0)
+        num = 1000;
+
+    *reinterpret_cast<int32_t *>(RBX::Studio::Offsets::FFlag_TaskSchedulerTargetFps) = num;
+    return 0;
+}
+
+int getfpscap(lua_State *L) {
+    lua_pushnumber(L, *reinterpret_cast<int32_t *>(RBX::Studio::Offsets::FFlag_TaskSchedulerTargetFps));
+    return 1;
+}
+
+
 int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
             {"enable_environment_instrumentation", enable_environment_instrumentation},
@@ -853,13 +871,18 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
             {"compile_to_bytecode", compile_to_bytecode},
 
             {"__SCHEDULER_STEPPED__HOOK", (static_cast<lua_CFunction>([](lua_State *L) -> int {
-                 if (auto *scheduler{Scheduler::get_singleton()}; scheduler->is_initialized()) {
+                 if (auto *scheduler{Scheduler::get_singleton()};
+                     scheduler->is_initialized() &&
+                     Module::Utilities::is_pointer_valid(scheduler->get_global_executor_state())) {
                      scheduler->scheduler_step(scheduler->get_global_executor_state());
                  }
-                 return (0);
+                 return 0;
              }))},
 
             {"gethui", gethui},
+
+            {"getfpscap", getfpscap},
+            {"setfpscap", setfpscap},
 
             // {oxorany_pchar(L"reinit"),            reinit},
 

@@ -54,6 +54,9 @@ namespace RBX::Studio::Offsets {
 
     // search for "InvalidInstance". Caller with two arguments (Modifies lua stack)
     const static std::uintptr_t pushinstance = RebaseAddress(0x141c83de0);
+
+    // Search for "TaskSchedulerTargetFps". Use the .data segment reference it refers towards. It is a DWORD (or int32_t)
+    const static std::uintptr_t FFlag_TaskSchedulerTargetFps = RebaseAddress(0x148116844);
 } // namespace RBX::Studio::Offsets
 
 struct lua_State;
