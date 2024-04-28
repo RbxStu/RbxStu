@@ -109,7 +109,8 @@ static void close_state(lua_State* L)
 }
 
 lua_State* luaE_newthread(lua_State* L)
-{    return RBX::Studio::Functions::rluaE_newthread(L);
+{
+    return RBX::Studio::Functions::rluaE_newthread(L);
     /*lua_State* L1 = luaM_newgco(L, lua_State, sizeof(lua_State), L->activememcat);
     luaC_init(L, L1, LUA_TTHREAD);
     preinit_state(L1, L->global);
