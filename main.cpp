@@ -135,6 +135,7 @@ int main(int argc, char **argv, char **envp) {
     pHook->initialize();
     printf("[main] Attached to RBX::Studio::Lua::freeblock for call instrumentation and for anti-crashing.\r\n");
     pHook->install_additional_hooks();
+    Sleep(500);
     pHook->install_hook();
     pHook->wait_until_initialised();
 
