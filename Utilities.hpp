@@ -38,29 +38,42 @@ namespace Module {
             const auto ptr = reinterpret_cast<void *>(tValue);
             auto buf = MEMORY_BASIC_INFORMATION{};
 
-            if (const auto read = VirtualQuery(ptr, &buf, sizeof(T)); sizeof(T) != read) {
+            // Query a full page.
+            if (const auto read = VirtualQuery(ptr, &buf, sizeof(buf)); read != 0 && sizeof(buf) != read) {
                 // I honestly dont care.
             } else if (read == 0) {
                 // Failure.
                 printf("[Module::Utilities::is_pointer_valid<T>] Failed to query information for ptr %p. Last Error: "
-                       "%lx",
+                       "0x%lx\r\n",
                        ptr, GetLastError());
                 return false;
             }
 
-            if (buf.State == MEM_FREE)
+            if (buf.State & MEM_FREE == MEM_FREE) {
+                printf("[Module::Utilities::is_pointer_valid<T>] Pointer not valid! The state of the memory block is "
+                       "freed.\r\n");
                 return false; // The memory is not owned by the process, no need to do anything, we can already assume
                               // we cannot read it.
-
-            switch (buf.Protect) {
-                case PAGE_READWRITE:
-                case PAGE_READONLY:
-                case PAGE_EXECUTE_READWRITE:
-                    return true;
-                default:
-                case PAGE_NOACCESS:
-                    return false;
             }
+
+            auto validProtections = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ |
+                                    PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+
+            if (buf.Protect & validProtections) {
+                return true;
+            }
+            if (buf.Protect & (PAGE_GUARD | PAGE_NOACCESS)) {
+                printf("[Module::Utilities::is_pointer_valid<T>] Pointer not valid! buf.Protect is either "
+                       "PAGE_NOACCESS or a PAGE_GUARD! 0x%p\r\n",
+                       buf.Protect);
+                return false;
+            }
+
+            printf("[Module::Utilities::is_pointer_valid<T>] Pointer assumed to NOT valid! Protection: 0x%p | State: "
+                   "%p\r\n",
+                   buf.Protect, buf.State);
+
+            return true;
         }
     };
 } // namespace Module
