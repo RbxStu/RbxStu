@@ -23,6 +23,7 @@ add_library(Module SHARED
         Environment/FilesystemLibrary.cpp
         Communication.cpp
         Communication.hpp
+        Environment/CryptLibrary.cpp
         # RBXScheduler.cpp
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

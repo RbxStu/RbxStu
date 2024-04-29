@@ -2,11 +2,11 @@
 // Created by Dottik on 21/11/2023.
 //
 
-#include <Windows.h>
-#include <string>
-#include <random>
-#include <oxorany.hpp>
 #include "Utilities.hpp"
+#include <Windows.h>
+#include <oxorany.hpp>
+#include <random>
+#include <string>
 
 Module::Utilities *Module::Utilities::sm_pModule = nullptr;
 
@@ -22,7 +22,7 @@ std::wstring Module::Utilities::get_random_wstring(const int length) {
 
     std::random_device rngDevice;
     std::mt19937 rng(rngDevice());
-    std::uniform_int_distribution<int> distribution((0), (62));
+    std::uniform_int_distribution<int> distribution(0, lstrlenW(alphabet));
 
     std::wstring randomString;
     randomString.reserve(length);
@@ -39,7 +39,7 @@ std::string Module::Utilities::get_random_string(const int length) {
 
     std::random_device rngDevice;
     std::mt19937 rng(rngDevice());
-    std::uniform_int_distribution<int> distribution((0), (62));
+    std::uniform_int_distribution<int> distribution(0, strlen(alphabet));
 
 
     std::string randomString;
@@ -72,25 +72,24 @@ const wchar_t *Module::Utilities::to_wchar(const char *szConvert) {
 
 
 std::string Module::Utilities::to_string(const std::wstring &szConvert) {
-    if (szConvert.empty()) return {};
+    if (szConvert.empty())
+        return {};
 
     const int len = WideCharToMultiByte(CP_UTF8, 0, szConvert.c_str(), static_cast<int>(szConvert.size()), nullptr, 0,
-                                        nullptr,
-                                        nullptr);
+                                        nullptr, nullptr);
     std::string strTo(len, 0);
     WideCharToMultiByte(CP_UTF8, 0, szConvert.c_str(), static_cast<int>(szConvert.size()),
-                        const_cast<char *>(strTo.c_str()),
-                        len, nullptr, nullptr);
+                        const_cast<char *>(strTo.c_str()), len, nullptr, nullptr);
     return strTo;
 }
 
 std::wstring Module::Utilities::to_wstring(const std::string &szConvert) {
-    if (szConvert.empty()) return {};
+    if (szConvert.empty())
+        return {};
 
     const int len = MultiByteToWideChar(CP_UTF8, 0, szConvert.c_str(), static_cast<int>(szConvert.size()), nullptr, 0);
     std::wstring nStr(len, 0);
     MultiByteToWideChar(CP_UTF8, 0, szConvert.c_str(), static_cast<int>(szConvert.size()),
-                        const_cast<wchar_t *>(nStr.c_str()),
-                        len);
+                        const_cast<wchar_t *>(nStr.c_str()), len);
     return nStr;
 }

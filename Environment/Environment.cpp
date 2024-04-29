@@ -13,6 +13,7 @@
 #include "WebsocketLibrary.hpp"
 
 #include "ClosureLibrary.hpp"
+#include "CryptLibrary.hpp"
 #include "DebugLibrary.hpp"
 #include "Dependencies/Luau/VM/include/lua.h"
 #include "Dependencies/Luau/VM/src/lgc.h"
@@ -907,10 +908,12 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
     auto closuresLibrary = ClosureLibrary{};
     auto websocketsLibrary = WebsocketLibrary{};
     auto debugLibrary = DebugLibrary{};
+    auto cryptLibrary = CryptoLibrary{};
     printf("[Envionment::register_env] Registering available libraries...\r\n");
     closuresLibrary.register_environment(L);
     debugLibrary.register_environment(L);
     websocketsLibrary.register_environment(L);
+    cryptLibrary.register_environment(L);
 
     if (useInitScript) {
         printf("[Envionment::register_env] Pushing initialization script to scheduler for execution...\r\n");
