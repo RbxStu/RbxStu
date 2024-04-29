@@ -24,8 +24,7 @@ std::wstring Module::Utilities::get_random_wstring(const int length) {
     std::mt19937 rng(rngDevice());
     std::uniform_int_distribution<int> distribution(0, lstrlenW(alphabet));
 
-    std::wstring randomString;
-    randomString.reserve(length);
+    std::wstring randomString{};
 
     for (int i = 0; i < length; ++i) {
         randomString += alphabet[distribution(rng)];
@@ -42,8 +41,7 @@ std::string Module::Utilities::get_random_string(const int length) {
     std::uniform_int_distribution<int> distribution(0, strlen(alphabet));
 
 
-    std::string randomString;
-    randomString.reserve(length);
+    std::string randomString{};
 
     for (int i = 0; i < length; ++i) {
         randomString += alphabet[distribution(rng)];
