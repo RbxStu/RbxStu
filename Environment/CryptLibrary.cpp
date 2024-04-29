@@ -5,13 +5,11 @@
 #include "CryptLibrary.hpp"
 
 #include <Utilities.hpp>
-#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+#include <cryptopp/osrng.h>
 #include <cryptopp/aes.h>
 #include <cryptopp/base64.h>
 #include <cryptopp/blowfish.h>
 #include <cryptopp/hex.h>
-#include <cryptopp/md4.h>
-#include <cryptopp/md5.h>
 #include <cryptopp/modes.h>
 #include <cryptopp/ripemd.h>
 #include <cryptopp/sha.h>
@@ -129,34 +127,26 @@ std::unique_ptr<CryptoPP::SymmetricCipher> to_cypher_from_string(const std::stri
 int crypt_base64encode(lua_State *L) {
     const char *s = luaL_checkstring(L, 1);
 
-    CryptoPP::Base64Encoder _base64Encoder{};
+    std::string final;
+    CryptoPP::Base64Encoder _base64Encoder{new CryptoPP::StringSink(final)};
 
     _base64Encoder.Put(reinterpret_cast<const byte *>(s), strlen(s));
     _base64Encoder.MessageEnd();
 
-    std::string final{};
-    final.resize(_base64Encoder.MaxRetrievable());
-
-    _base64Encoder.Get(const_cast<byte *>(reinterpret_cast<const byte *>(final.c_str())), final.size());
-
-    lua_pushstring(L, final.c_str());
+    lua_pushlstring(L, final.c_str(), final.size());
     return 1;
 }
 
 int crypt_base64decode(lua_State *L) {
     const char *s = luaL_checkstring(L, 1);
 
-    CryptoPP::Base64Decoder _base64Decoder{};
+    std::string final;
+    CryptoPP::Base64Decoder _base64Decoder{new CryptoPP::StringSink(final)};
 
     _base64Decoder.Put(reinterpret_cast<const byte *>(s), strlen(s));
     _base64Decoder.MessageEnd();
 
-    std::string final{};
-    final.resize(_base64Decoder.MaxRetrievable());
-
-    _base64Decoder.Get(const_cast<byte *>(reinterpret_cast<const byte *>(final.c_str())), final.size());
-
-    lua_pushstring(L, final.c_str());
+    lua_pushlstring(L, final.c_str(), final.size());
     return 1;
 }
 
@@ -164,8 +154,25 @@ int crypt_encrypt(lua_State *L) {
     const char *plain = luaL_checkstring(L, 1);
     const char *key = luaL_checkstring(L, 2);
     std::string IV = luaL_optstring(L, 3, "NADAAAAAA");
-    if (strcmp(IV.c_str(), "NADAAAAAA") == 0)
-        IV = Module::Utilities::get_singleton()->get_random_string(16);
+
+    if (strcmp(IV.c_str(), "NADAAAAAA") == 0) {
+        IV = "";
+        CryptoPP::SecByteBlock iv(CryptoPP::AES::BLOCKSIZE);
+
+        OS_GenerateRandomBlock(true, iv, iv.size());
+        CryptoPP::Base64Encoder _base64Encoder{new CryptoPP::StringSink(IV)};
+
+        _base64Encoder.Put(iv, iv.size());
+        _base64Encoder.MessageEnd();
+    }
+
+    // We have to decode the key as base64.
+    std::string nKey;
+    CryptoPP::Base64Decoder _base64Decoder{new CryptoPP::StringSink(nKey)};
+
+    _base64Decoder.Put(reinterpret_cast<const byte *>(key), strlen(key));
+    _base64Decoder.MessageEnd();
+
     std::string algorithm = luaL_optstring(L, 4, "aes-cbc");
 
 
@@ -173,7 +180,7 @@ int crypt_encrypt(lua_State *L) {
 
     const auto cryptCypher = to_cypher_from_string(algorithm, true);
 
-    cryptCypher->SetKeyWithIV(reinterpret_cast<const CryptoPP::byte *>(key), strlen(key),
+    cryptCypher->SetKeyWithIV(reinterpret_cast<const CryptoPP::byte *>(nKey.c_str()), nKey.size(),
                               reinterpret_cast<const CryptoPP::byte *>(IV.c_str()));
 
     // Decrypt.
@@ -207,8 +214,15 @@ int crypt_decrypt(lua_State *L) {
 
     const auto cryptCypher = to_cypher_from_string(algorithm, true);
 
+    // Decode key
+    std::string nKey;
+    CryptoPP::Base64Decoder _base64Decoder{new CryptoPP::StringSink(nKey)};
 
-    cryptCypher->SetKeyWithIV(reinterpret_cast<const CryptoPP::byte *>(key), strlen(key),
+    _base64Decoder.Put(reinterpret_cast<const byte *>(key), strlen(key));
+    _base64Decoder.MessageEnd();
+
+
+    cryptCypher->SetKeyWithIV(reinterpret_cast<const CryptoPP::byte *>(nKey.c_str()), nKey.size(),
                               reinterpret_cast<const CryptoPP::byte *>(IV));
 
     // Decrypt the ciphertext
@@ -239,20 +253,38 @@ int crypt_hash(lua_State *L) {
     return 1;
 }
 
-int crypt_generatekey(lua_State *L) {
+int crypt_generatebytes(lua_State *L) {
+    auto byteCount = luaL_checkinteger(L, 1);
+    CryptoPP::RandomPool prng;
+    CryptoPP::SecByteBlock seed(byteCount);
 
-    auto str = Module::Utilities::get_singleton()->get_random_string(32);
-    CryptoPP::Base64Encoder _base64Encoder{};
-
-    _base64Encoder.Put(reinterpret_cast<const byte *>(str.c_str()), str.size());
-    _base64Encoder.MessageEnd();
+    OS_GenerateRandomBlock(true, seed, seed.size());
+    prng.IncorporateEntropy(seed, seed.size());
 
     std::string final{};
-    final.resize(_base64Encoder.MaxRetrievable());
+    CryptoPP::Base64Encoder _base64Encoder{new CryptoPP::StringSink(final)};
 
-    _base64Encoder.Get(const_cast<byte *>(reinterpret_cast<const byte *>(final.c_str())), final.size());
-
+    _base64Encoder.Put(seed, seed.size());
+    _base64Encoder.MessageEnd();
     lua_pushstring(L, final.c_str());
+
+    return 1;
+}
+
+int crypt_generatekey(lua_State *L) {
+    CryptoPP::RandomPool prng;
+    CryptoPP::SecByteBlock seed(32); // 256 bytes
+
+    OS_GenerateRandomBlock(true, seed, seed.size());
+    prng.IncorporateEntropy(seed, seed.size());
+
+    std::string final{};
+    CryptoPP::Base64Encoder _base64Encoder{new CryptoPP::StringSink(final)};
+
+    _base64Encoder.Put(seed, seed.size());
+    _base64Encoder.MessageEnd();
+    lua_pushstring(L, final.c_str());
+
     return 1;
 }
 
@@ -265,10 +297,12 @@ void CryptoLibrary::register_environment(lua_State *L) {
             {"base64_encode", crypt_base64encode},
 
             {"decrypt", crypt_decrypt},
-            {"encrypt", crypt_decrypt},
+            {"encrypt", crypt_encrypt},
 
             {"hash", crypt_hash},
+
             {"generatekey", crypt_generatekey},
+            {"generatebytes", crypt_generatebytes},
             {nullptr, nullptr},
     };
 
