@@ -65,11 +65,6 @@ bool Websocket::set_callback_and_url(const std::string &url) {
                 if (this->EventReferences.onMessage_ref == -1)
                     return;
                 lua_rawgeti(this->pLuaThread, LUA_REGISTRYINDEX, this->EventReferences.onMessage_ref);
-                if (this->pLuaThread->top->tt != LUA_TUSERDATA) {
-                    printf("[Websocket::OnMessageCallback] Cowardly refusing to fire an event due to a lua_ref "
-                           "problem\r\n");
-                    break;
-                }
                 lua_getfield(this->pLuaThread, -1, "Fire");
                 lua_pushvalue(this->pLuaThread, -2);
                 lua_pushlstring(this->pLuaThread, msg->str.c_str(), msg->str.size());
@@ -81,11 +76,6 @@ bool Websocket::set_callback_and_url(const std::string &url) {
                 if (this->EventReferences.onError_ref == -1)
                     return;
                 lua_rawgeti(this->pLuaThread, LUA_REGISTRYINDEX, (this->EventReferences.onError_ref));
-                if (this->pLuaThread->top->tt != LUA_TUSERDATA) {
-                    printf("[Websocket::OnMessageCallback] Cowardly refusing to fire an event due to a lua_ref "
-                           "problem\r\n");
-                    break;
-                }
                 lua_getfield(this->pLuaThread, -1, "Fire");
                 lua_pushvalue(this->pLuaThread, -2);
                 lua_pushlstring(this->pLuaThread, msg->str.c_str(), msg->str.size());
@@ -111,11 +101,6 @@ bool Websocket::set_callback_and_url(const std::string &url) {
                 if (this->EventReferences.onClose_ref == -1)
                     return;
                 lua_rawgeti(this->pLuaThread, LUA_REGISTRYINDEX, (this->EventReferences.onClose_ref));
-                if (this->pLuaThread->top->tt != LUA_TUSERDATA) {
-                    printf("[Websocket::OnMessageCallback] Cowardly refusing to fire an event due to a lua_ref "
-                           "problem\r\n");
-                    break;
-                }
                 lua_getfield(this->pLuaThread, -1, ("Fire"));
                 lua_pushvalue(this->pLuaThread, -2);
                 lua_pcall(this->pLuaThread, 1, 0, 0);
@@ -151,6 +136,11 @@ int Websocket::close(lua_State *L) {
     }
 
     const auto socket = websockets[userdata];
+    try {
+        socket->pWebSocket->stop();
+    } catch (std::exception &ex) {
+        // L bozo i don't care for the exception!!!
+    }
     websockets.erase(userdata);
 
     // Unsafe as hell, we pray we don't crash while doing this...
