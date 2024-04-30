@@ -102,12 +102,14 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
             return Hook::get_singleton()->get_pseudo_original()(L, idx);
         }
         if (!ignoreChecks) {
-            if (lua_getglobal(L, "Plugin"); !lua_isnil(L, 1) && lua_pop(L, 1)) { // Check nd pop
+            if (lua_getglobal(L, "Plugin"); !lua_isnil(L, 1)) { // Check nd pop
+                lua_pop(L, 1);
                 wprintf(L"lua_State* may belong to a plugin! Ignored\r\n");
                 tries++;
                 mutx.unlock();
                 return Hook::get_singleton()->get_pseudo_original()(L, idx);
             }
+            lua_pop(L, 1);
 
             auto originalTop = lua_gettop(L);
             lua_getglobal(L, "game");
