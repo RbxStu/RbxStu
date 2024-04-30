@@ -12,7 +12,7 @@ class Communication final {
     void handshake();
 
 public:
-    enum OpCodes {
+    enum OpCodes : unsigned char {
         /*
             Obtains the workspace used for the Filesystem library. Provided by the external GUI.
          */
