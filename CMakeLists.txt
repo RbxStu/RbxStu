@@ -6,6 +6,11 @@ set(BUILD_SHARED_LIBS OFF)
 set(PROJECT_NAME Module)
 set(CMAKE_CXX_STANDARD 23)
 
+set(TBS_MT ON)          # Enable TBS multithreading
+set(TBS_USE_SSE2 ON)    # Enable TBS SSE2 support
+set(TBS_USE_AVX ON)     # Enable TBS AVX support
+set(TBS_USE_ETL OFF)    # Enable ETL Integration Usage by TBS
+
 add_library(Module SHARED
         main.cpp
         Execution.cpp
@@ -24,6 +29,8 @@ add_library(Module SHARED
         Communication.cpp
         Communication.hpp
         Environment/CryptLibrary.cpp
+        Scanner.cpp
+        Dependencies/TBS.hpp
         # RBXScheduler.cpp
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

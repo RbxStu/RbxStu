@@ -25,12 +25,17 @@ namespace RBX::Studio::Offsets {
     const static std::uintptr_t pseudo2addr = RebaseAddress(0x1431b6750);
 
     // search for coroutine.wrap. Inside there will be a lua_pushthread and lua_newthread call. Inside lua_newthread luaE_newthread is called.
+    // Signature: E8 ? ? ? ? 48 8B 57 ? 48 8B D8 44 0F B6 42 ? C6 00 ? 41 80 E0 ? 44 88 40 ? 0F B6 57 ? 88 50 ? 48 8B D7 48 8B 4F ? 48 89 48 ? 33 C0 89 43 ? 48 8B CB 48 89 43 ? 48 89 43 ? 48 89 43 ? 48 89 43 ? 48 89 43 ? 48 89 43 ? 48 89 43 ? 48 89 43 ? 48 89 43 ? 0F B6 47 ? 88 43 ? E8 ? ? ? ? 48 8B 47 ? 48 89 43 ? 0F B6 47 ? 88 43 ?
     const static std::uintptr_t rluaE_newthread = RebaseAddress(0x1431b7c40);
+
     // search for "memory allocation error: block too big". You will find luaG_runerrorL, last call is luaD_throw.
     // Signature for luaG_runerrorL (Calls luaD_throw): 48 89 50 ? 4C 89 40 ? 4C 89 48 ? 53 48 81 EC ? ? ? ? 48 8B D9 4C 8D 48 ? 4C 8B C2 48 8D 4C 24 ? BA ? ? ? ? E8 ? ? ? ? 48 8D 54 24 ? 48 8B CB E8 ? ? ? ? BA ? ? ? ? 48 8B CB E8 ? ? ? ?
     const static std::uintptr_t rLuaD_throw = RebaseAddress(0x1431ba650);
+
     // search for coroutine.wrap. Inside there will be a lua_pushthread and lua_newthread call.
+    // Signature: 48 8B 51 ? 48 8B D9 48 8B 42 ? 48 39 42 48 72 07 B2 ? E8 ? ? ? ? F6 43 01 04 74 0F 4C 8D 43 ? 48 8B D3 48 8B CB E8 ? ? ? ? 48 8B CB E8 ? ? ? ? 48 8B 4B ? 48 8B F8 48 89 01 C7 41 ? ? ? ? ? 48 83 43 08 ? 48 8B 4B ? 48 8B 81 ? ? ? ? 48 85 C0 74 08 48 8B D7 48 8B CB FF D0 48 8B 5C 24 ? 48 8B C7 48 83 C4 ? 5F C3
     const static std::uintptr_t rlua_newthread = RebaseAddress(0x1431b46c0);
+
     // search for "defer"
     const static std::uintptr_t rTask_defer = RebaseAddress(0x141e2df80);
 
