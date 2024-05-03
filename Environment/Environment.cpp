@@ -794,6 +794,18 @@ int getfpscap(lua_State *L) {
     return 1;
 }
 
+int messagebox(lua_State *L) {
+    luaL_checkstring(L, 1);
+    luaL_checkstring(L, 2);
+    luaL_checkinteger(L, 3);
+
+    int Result = MessageBoxA(NULL, lua_tostring(L, 1), lua_tostring(L, 2), lua_tointeger(L, 3));
+
+    while (Result == 0) Sleep(10);
+
+    lua_pushinteger(L, Result);
+    return 1;
+}
 
 int Environment::register_env(lua_State *L, bool useInitScript) {
     static const luaL_Reg reg[] = {
@@ -884,6 +896,8 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
 
             {"getfpscap", getfpscap},
             {"setfpscap", setfpscap},
+
+            {"messagebox", messagebox},
 
             // {oxorany_pchar(L"reinit"),            reinit},
 
