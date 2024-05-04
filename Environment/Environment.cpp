@@ -502,32 +502,31 @@ int setclipboard(lua_State *L) {
     if (Environment::get_singleton()->get_instrumentation_status()) {
         printf("--- setclipboard invoked ---\r\n");
     }
-    const char *newClipboard = lua_tostring(L, 1);
+    luaL_checkany(L, 1);
+    const char* data = luaL_tolstring(L, 1, NULL);
+    lua_pop(L, 1);
 
-    if (!OpenClipboard(nullptr)) {
-        lua_pushnil(L);
-        return 0;
-    }
+    HWND hwnd = GetDesktopWindow();
 
+    OpenClipboard(hwnd);
     EmptyClipboard();
-    const auto allocSize = strlen(newClipboard) + 1;
-    const HGLOBAL newMemory = GlobalAlloc(GMEM_MOVEABLE, allocSize);
-    if (newMemory == nullptr) { // Rip windows, malloc
+
+    HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, strlen(data) + 1);
+
+    if (!hg)
+    {
         CloseClipboard();
         return 0;
     }
 
-    if (!GlobalLock(newMemory)) {
-        CloseClipboard();
-        GlobalFree(newMemory);
-        return 0;
-    }
+    memcpy(GlobalLock(hg), data, strlen(data) + 1);
+    GlobalUnlock(hg);
 
-    std::memcpy(newMemory, newClipboard, allocSize);
-    GlobalUnlock(newMemory);
-    SetClipboardData(CF_TEXT, newMemory);
+    SetClipboardData(CF_TEXT, hg);
     CloseClipboard();
-    GlobalFree(newMemory);
+
+    GlobalFree(hg);
+
     return 1;
 }
 
