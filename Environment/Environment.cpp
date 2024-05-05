@@ -19,6 +19,7 @@
 #include "Dependencies/Luau/VM/src/lgc.h"
 #include "Dependencies/Luau/VM/src/lmem.h"
 #include "Dependencies/Luau/VM/src/lvm.h"
+#include "FilesystemLibrary.hpp"
 #include "Hook.hpp"
 #include "Scheduler.hpp"
 #include "Security.hpp"
@@ -922,11 +923,13 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
     auto websocketsLibrary = WebsocketLibrary{};
     auto debugLibrary = DebugLibrary{};
     auto cryptLibrary = CryptoLibrary{};
+    auto fileLibrary = FilesystemLibrary{};
     printf("[Envionment::register_env] Registering available libraries...\r\n");
     closuresLibrary.register_environment(L);
     debugLibrary.register_environment(L);
     websocketsLibrary.register_environment(L);
     cryptLibrary.register_environment(L);
+    fileLibrary.register_environment(L);
 
     if (useInitScript) {
         printf("[Envionment::register_env] Pushing initialization script to scheduler for execution...\r\n");
