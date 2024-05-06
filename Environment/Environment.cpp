@@ -509,7 +509,7 @@ int setclipboard(lua_State *L) {
     OpenClipboard(nullptr);
     EmptyClipboard();
 
-    HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, strlen(data) + 1);
+HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, strlen(data) + 1);
 
     if (!hg)
     {
@@ -517,7 +517,14 @@ int setclipboard(lua_State *L) {
         return 0;
     }
 
-    memcpy(GlobalLock(hg), data, strlen(data) + 1);
+    if (!GlobalLock(hg)) {
+        CloseClipboard();
+        GlobalFree(hg);
+        return 0;
+    }
+
+
+    std::memcpy(hg, data, strlen(data) + 1);
     GlobalUnlock(hg);
 
     SetClipboardData(CF_TEXT, hg);
