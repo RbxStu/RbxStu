@@ -34,19 +34,9 @@ namespace Module {
         /// Converts char into wchar_t. Returns heap allocated memory. YOU MUST DISPOSE!
         const wchar_t *to_wchar(const char *szConvert);
 
-        std::string read_file(std::string file_location);
-
-        std::string GetLocation();
-
-        std::string replace(std::string subject, std::string search, std::string replace);
-
         int get_proc_id(const char* name);
 
         BOOL roblox_active();
-
-        BOOL equals_ignore_case(std::string_view a, std::string_view b);
-
-        void create_workspace();
 
         template<typename T>
         static bool is_pointer_valid(T *tValue) {
