@@ -504,12 +504,9 @@ int setclipboard(lua_State *L) {
         printf("--- setclipboard invoked ---\r\n");
     }
     luaL_checkany(L, 1);
-    const char* data = luaL_tolstring(L, 1, NULL);
-    lua_pop(L, 1);
+    const char* data = luaL_tostring(L, 1, NULL);
 
-    HWND hwnd = GetDesktopWindow();
-
-    OpenClipboard(hwnd);
+    OpenClipboard(nullptr);
     EmptyClipboard();
 
     HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, strlen(data) + 1);
