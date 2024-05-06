@@ -2,8 +2,6 @@
 // Created by Dottik on 21/11/2023.
 //
 
-#define _CRT_SECURE_NO_WARNINGS
-
 #include "Utilities.hpp"
 #include <Windows.h>
 #include <filesystem>
