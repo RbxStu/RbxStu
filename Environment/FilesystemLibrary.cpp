@@ -19,6 +19,7 @@
 #include <shlwapi.h>
 #include <Scheduler.hpp>
 
+EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 
 const std::vector<std::string> disallowed_extensions = {
     ".exe", ".bat",  ".com", ".cmd",  ".inf", ".ipa",
@@ -37,7 +38,15 @@ const std::vector<std::string> disallowed_extensions = {
 ".action", ".command", ".arscript", ".psc1"
 };
 
-EXTERN_C IMAGE_DOS_HEADER __ImageBase;
+FilesystemLibrary *FilesystemLibrary::Singleton = nullptr;
+
+FilesystemLibrary *FilesystemLibrary::get_singleton() {
+    if (FilesystemLibrary::Singleton == nullptr)
+        FilesystemLibrary::Singleton = new FilesystemLibrary();
+
+    return FilesystemLibrary::Singleton;
+}
+
 
 std::string read_file(std::string file_location) {
     auto close_file = [](FILE* f) { fclose(f); };
@@ -68,20 +77,23 @@ std::string read_file(std::string file_location) {
 
 std::string GetLocation() {
     char DllPath[MAX_PATH] = {0};
+    std::string location = FilesystemLibrary::get_singleton()->location;
     GetModuleFileNameA((HINSTANCE)&__ImageBase, DllPath, _countof(DllPath));
 
     std::string dll_path = DllPath;
 
     std::string exploit_path = dll_path.substr(0, dll_path.rfind('\\'));
 
-    FilesystemLibrary::location = exploit_path;
+    location = exploit_path;
 
-    return FilesystemLibrary::location;
+    return location;
 }
 
 void create_workspace() {
-    if (!std::filesystem::exists(FilesystemLibrary::location + ("\\workspace")))
-        std::filesystem::create_directory(FilesystemLibrary::location + ("\\workspace"));
+    std::string location = FilesystemLibrary::get_singleton()->location;
+    
+    if (!std::filesystem::exists(location + ("\\workspace")))
+        std::filesystem::create_directory(location + ("\\workspace"));
 }
 
 std::string replace(std::string subject, std::string search, std::string replace) {
@@ -112,14 +124,16 @@ int listfiles(lua_State *L) {
     create_workspace();
 
     std::string path = lua_tostring(L, 1);
+    
+    std::string location = FilesystemLibrary::get_singleton()->location;
 
     if (path.find("..") != std::string::npos)
         luaG_runerrorL(L, "Using \'..\' is not permitted for safety reasons.");
 
     if(!path.empty()) {
-        path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+        path = (location + "\\workspace\\" + path);
     } else {
-        path = (FilesystemLibrary::location+ "\\workspace");
+        path = (location + "\\workspace");
     }
 
     if (!std::filesystem::is_directory(path.c_str())) {
@@ -132,7 +146,7 @@ int listfiles(lua_State *L) {
     for (const auto& entry : std::filesystem::directory_iterator(path))
     {
         auto file_path = entry.path().string();
-        file_path = replace(file_path, (FilesystemLibrary::location+ "\\workspace\\"), "");
+        file_path = replace(file_path, (FilesystemLibrary::get_singleton()->location+ "\\workspace\\"), "");
 
         lua_pushinteger(L, ++idx);
         lua_pushstring(L, file_path.c_str());
@@ -161,7 +175,7 @@ int writefile(lua_State *L) {
         luaG_runerrorL(L, "attempt to escape directory");;
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     std::ofstream out(path);
     out << content;
@@ -181,7 +195,7 @@ int makefolder(lua_State *L) {
         luaG_runerror(L, "attempt to escape directory");
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     if(std::filesystem::is_directory(path)) {
         luaG_runerror(L, "Directory already exists");
@@ -210,7 +224,7 @@ int appendfile(lua_State* L) {
         luaG_runerror(L, "attempt to escape directory");;
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     std::ofstream out;
     out.open(path, std::ios_base::app | std::ios_base::binary);
@@ -232,7 +246,7 @@ int readfile(lua_State *L) {
         luaG_runerrorL(L, "attempt to escape directory");
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     if (!std::filesystem::exists(path.c_str())) {
         //std::cout << "file does not exist!\n";
@@ -254,7 +268,7 @@ int isfolder(lua_State* L)  {
         luaG_runerrorL(L, "attempt to escape directory");
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     lua_pushboolean(L, std::filesystem::is_directory(path));
     return 1;
@@ -270,7 +284,7 @@ int isfile(lua_State* L) {
         luaG_runerrorL(L, "attempt to escape directory");
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     lua_pushboolean(L, std::filesystem::is_regular_file(path));
     return 1;
@@ -286,7 +300,7 @@ int delfolder(lua_State* L) {
         luaG_runerrorL(L, "attempt to escape directory");;
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     if (!std::filesystem::remove_all(path)) {
         luaG_runerrorL(L, "folder does not exist");
@@ -305,7 +319,7 @@ int delfile(lua_State* L) {
         luaG_runerrorL(L, "attempt to escape directory");
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     if (!std::filesystem::remove(path)) {
         luaG_runerrorL(L, "file does not exist");
@@ -324,7 +338,7 @@ int dofile(lua_State* L) {
         luaG_runerrorL(L, "attempt to escape directory");
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     if (!std::filesystem::exists(path.c_str())) {
         luaG_runerrorL(L, "file does not exist");
@@ -352,7 +366,7 @@ int loadfile(lua_State* L) {
         return 0;
     }
 
-    path = (FilesystemLibrary::location+ "\\workspace\\" + path);
+    path = (FilesystemLibrary::get_singleton()->location+ "\\workspace\\" + path);
 
     if (!std::filesystem::exists(path.c_str())) {
         luaG_runerrorL(L, "file does not exist");
