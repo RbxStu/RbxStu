@@ -15,4 +15,6 @@ protected:
 
 public:
     void register_environment(lua_State *L) override;
+
+   static std::string location;
 };
