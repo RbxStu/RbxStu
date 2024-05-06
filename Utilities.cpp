@@ -15,7 +15,6 @@
 
 Module::Utilities *Module::Utilities::sm_pModule = nullptr;
 
-EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 
 Module::Utilities *Module::Utilities::get_singleton() {
     if (sm_pModule == nullptr)
@@ -132,68 +131,3 @@ std::wstring Module::Utilities::to_wstring(const std::string &szConvert) {
     return nStr;
 }
 
-std::string Module::Utilities::replace(std::string subject, std::string search, std::string replace) {
-    size_t pos = 0;
-
-    while ((pos = subject.find(search, pos)) != std::string::npos)
-    {
-        subject.replace(pos, search.length(), replace);
-        pos += replace.length();
-    }
-
-    return subject;
-}
-
-BOOL Module::Utilities::equals_ignore_case(std::string_view a, std::string_view b) {
-    return std::equal(a.begin(), a.end(),
-        b.begin(), b.end(),
-        [](char a, char b) {
-            return tolower(a) == tolower(b);
-        }
-    );
-}
-
-std::string Module::Utilities::read_file(std::string file_location) {
-    auto close_file = [](FILE* f) { fclose(f); };
-    auto holder = std::unique_ptr<FILE, decltype(close_file)>(fopen(file_location.c_str(), "rb"), close_file);
-
-    if (!holder)
-        return "";
-
-    FILE* f = holder.get();
-
-    if (fseek(f, 0, SEEK_END) < 0)
-        return "";
-
-    const long size = ftell(f);
-
-    if (size < 0)
-        return "";
-
-    if (fseek(f, 0, SEEK_SET) < 0)
-        return "";
-
-    std::string res;
-    res.resize(size);
-    fread(const_cast<char*>(res.data()), 1, size, f);
-
-    return res;
-}
-
-std::string Module::Utilities::GetLocation() {
-    char DllPath[MAX_PATH] = {0};
-    GetModuleFileNameA((HINSTANCE)&__ImageBase, DllPath, _countof(DllPath));
-
-    std::string dll_path = DllPath;
-
-    std::string exploit_path = dll_path.substr(0, dll_path.rfind('\\'));
-
-    this->location = exploit_path;
-
-    return this->location;
-}
-
-void Module::Utilities::create_workspace() {
-    if (!std::filesystem::exists(this->location + ("\\workspace")))
-            std::filesystem::create_directory(this->location + ("\\workspace"));
-}
