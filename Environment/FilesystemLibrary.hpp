@@ -10,11 +10,16 @@
 #include "EnvironmentLibrary.hpp"
 
 class FilesystemLibrary final : public EnvironmentLibrary {
+    static FilesystemLibrary *m_singleton;
+    std::string location;
+
 protected:
     ~FilesystemLibrary() = default;
 
 public:
-    void register_environment(lua_State *L) override;
+    static FilesystemLibrary *get_singleton();
 
-   static std::string location;
+    [[nodiscard]] std::string get_workspace_path() const { return this->location; }
+
+    void register_environment(lua_State *L) override;
 };
