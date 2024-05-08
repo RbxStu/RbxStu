@@ -500,27 +500,27 @@ int getclipboard(lua_State *L) {
 }
 
 int setclipboard(lua_State *L) {
-    if (Environment::get_singleton()->get_instrumentation_status()) {
+    luaL_checkstring(L, 1);
+
+    if (Environment::get_singleton()->get_instrumentation_status())
         printf("--- setclipboard invoked ---\r\n");
-    }
-    luaL_checkany(L, 1);
-    const char* data = luaL_tostring(L, 1, NULL);
+
+    const char *data = lua_tostring(L, 1);
 
     OpenClipboard(nullptr);
     EmptyClipboard();
 
-HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, strlen(data) + 1);
+    HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, strlen(data) + 1);
 
-    if (!hg)
-    {
+    if (!hg) {
         CloseClipboard();
-        return 0;
+        luaG_runerror(L, "Windows API error: Failed to allocate memory.");
     }
 
     if (!GlobalLock(hg)) {
         CloseClipboard();
         GlobalFree(hg);
-        return 0;
+        luaG_runerror(L, "Windows API error: Failed to lock memory.");
     }
 
 
@@ -532,7 +532,7 @@ HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, strlen(data) + 1);
 
     GlobalFree(hg);
 
-    return 1;
+    return 0;
 }
 
 int compareinstances(lua_State *L) {
@@ -803,11 +803,9 @@ int messagebox(lua_State *L) {
     luaL_checkstring(L, 2);
     luaL_checkinteger(L, 3);
 
-    int Result = MessageBoxA(NULL, lua_tostring(L, 1), lua_tostring(L, 2), lua_tointeger(L, 3));
+    const int lMessageboxReturn = MessageBoxA(nullptr, lua_tostring(L, 1), lua_tostring(L, 2), lua_tointeger(L, 3));
 
-    while (Result == 0) Sleep(10);
-
-    lua_pushinteger(L, Result);
+    lua_pushinteger(L, lMessageboxReturn);
     return 1;
 }
 
