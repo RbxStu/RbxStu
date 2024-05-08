@@ -115,6 +115,7 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
             lua_getglobal(L, "game");
 
             if (lua_isnil(L, -1)) {
+                lua_settop(L, originalTop); // Reset stack.
                 wprintf(L"No DataModel found, lua_State* ignored.\r\n");
                 tries++;
                 mutx.unlock();
@@ -171,16 +172,16 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
         RBX::Security::Bypasses::set_thread_security(L, oldObf);
         RBX::Security::Bypasses::reallocate_extraspace(nL);
         RBX::Security::Bypasses::set_thread_security(nL, RBX::Identity::Eight_Seven);
-        RBX::Security::MarkThread(nL);
 
         lua_settop(L, oldTop);
         // auto L_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(L->userdata);
         // auto nL_userdata = reinterpret_cast<RBX::Lua::ExtraSpace *>(nL->userdata);
         // nL_userdata->sharedExtraSpace = L_userdata->sharedExtraSpace;
-        lua_newtable(L);
+        lua_newtable(nL);
         lua_setglobal(nL, "_G");
+        lua_getglobal(nL, "_G");
+        lua_setglobal(nL, "shared");
         scheduler->initialize_with(nL, rL);
-        lua_settop(L, oldTop);
     }
 
     mutx.unlock();
