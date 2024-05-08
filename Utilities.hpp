@@ -15,6 +15,9 @@ namespace Module {
     public:
         static Utilities *get_singleton();
 
+        std::string location;
+
+
         std::string get_random_string(int length);
 
         std::wstring get_random_wstring(int length);
@@ -30,6 +33,10 @@ namespace Module {
 
         /// Converts char into wchar_t. Returns heap allocated memory. YOU MUST DISPOSE!
         const wchar_t *to_wchar(const char *szConvert);
+
+        int get_proc_id(const char* name);
+
+        BOOL roblox_active();
 
         template<typename T>
         static bool is_pointer_valid(T *tValue) {

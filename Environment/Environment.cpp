@@ -19,6 +19,7 @@
 #include "Dependencies/Luau/VM/src/lgc.h"
 #include "Dependencies/Luau/VM/src/lmem.h"
 #include "Dependencies/Luau/VM/src/lvm.h"
+#include "FilesystemLibrary.hpp"
 #include "Hook.hpp"
 #include "Scheduler.hpp"
 #include "Security.hpp"
@@ -502,32 +503,35 @@ int setclipboard(lua_State *L) {
     if (Environment::get_singleton()->get_instrumentation_status()) {
         printf("--- setclipboard invoked ---\r\n");
     }
-    const char *newClipboard = lua_tostring(L, 1);
+    luaL_checkany(L, 1);
+    const char* data = luaL_tostring(L, 1, NULL);
 
-    if (!OpenClipboard(nullptr)) {
-        lua_pushnil(L);
-        return 0;
-    }
-
+    OpenClipboard(nullptr);
     EmptyClipboard();
-    const auto allocSize = strlen(newClipboard) + 1;
-    const HGLOBAL newMemory = GlobalAlloc(GMEM_MOVEABLE, allocSize);
-    if (newMemory == nullptr) { // Rip windows, malloc
+
+HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, strlen(data) + 1);
+
+    if (!hg)
+    {
         CloseClipboard();
         return 0;
     }
 
-    if (!GlobalLock(newMemory)) {
+    if (!GlobalLock(hg)) {
         CloseClipboard();
-        GlobalFree(newMemory);
+        GlobalFree(hg);
         return 0;
     }
 
-    std::memcpy(newMemory, newClipboard, allocSize);
-    GlobalUnlock(newMemory);
-    SetClipboardData(CF_TEXT, newMemory);
+
+    std::memcpy(hg, data, strlen(data) + 1);
+    GlobalUnlock(hg);
+
+    SetClipboardData(CF_TEXT, hg);
     CloseClipboard();
-    GlobalFree(newMemory);
+
+    GlobalFree(hg);
+
     return 1;
 }
 
@@ -923,11 +927,13 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
     auto websocketsLibrary = WebsocketLibrary{};
     auto debugLibrary = DebugLibrary{};
     auto cryptLibrary = CryptoLibrary{};
+    auto fileLibrary = FilesystemLibrary{};
     printf("[Envionment::register_env] Registering available libraries...\r\n");
     closuresLibrary.register_environment(L);
     debugLibrary.register_environment(L);
     websocketsLibrary.register_environment(L);
     cryptLibrary.register_environment(L);
+    fileLibrary.register_environment(L);
 
     if (useInitScript) {
         printf("[Envionment::register_env] Pushing initialization script to scheduler for execution...\r\n");

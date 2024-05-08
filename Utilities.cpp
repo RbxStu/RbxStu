@@ -4,11 +4,15 @@
 
 #include "Utilities.hpp"
 #include <Windows.h>
+#include <filesystem>
 #include <oxorany.hpp>
 #include <random>
 #include <string>
+#include <tlhelp32.h>
+
 
 Module::Utilities *Module::Utilities::sm_pModule = nullptr;
+
 
 Module::Utilities *Module::Utilities::get_singleton() {
     if (sm_pModule == nullptr)
@@ -49,6 +53,39 @@ std::string Module::Utilities::get_random_string(const int length) {
 
     return randomString;
 }
+
+int Module::Utilities::get_proc_id(const char* name) {
+    PROCESSENTRY32 entry;
+    entry.dwSize = sizeof(PROCESSENTRY32);
+
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+
+    if (Process32First(snapshot, &entry) == TRUE)
+    {
+        while (Process32Next(snapshot, &entry) == TRUE)
+        {
+            if (_stricmp(entry.szExeFile, name) == 0)
+            {
+                CloseHandle(snapshot);
+                return entry.th32ProcessID;
+            }
+        }
+    }
+
+    CloseHandle(snapshot);
+    return 0;
+}
+
+BOOL Module::Utilities::roblox_active() {
+    int proc_id = this->get_proc_id("RobloxStudioBeta.exe");
+    HWND foreground = GetForegroundWindow();
+
+    DWORD fproc_id;
+    GetWindowThreadProcessId(foreground, &fproc_id);
+
+    return (fproc_id == proc_id);
+}
+
 
 /// Converts wchar_t into char. Returns heap allocated memory. YOU MUST DISPOSE!
 const char *Module::Utilities::to_char(const wchar_t *szConvert) {
@@ -91,3 +128,4 @@ std::wstring Module::Utilities::to_wstring(const std::string &szConvert) {
                         const_cast<wchar_t *>(nStr.c_str()), len);
     return nStr;
 }
+
