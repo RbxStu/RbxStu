@@ -12,7 +12,8 @@
 #include "lstate.h"
 #include "ltm.h"
 
-LUAU_FASTFLAGVARIABLE(LuauCodegenLoadTVTag, false)
+LUAU_FASTFLAGVARIABLE(LuauCodegenDirectUserdataFlow, false)
+LUAU_FASTFLAGVARIABLE(LuauCodegenFixVectorFields, false)
 
 namespace Luau
 {
@@ -110,18 +111,11 @@ static void translateInstLoadConstant(IrBuilder& build, int ra, int k)
         build.inst(IrCmd::STORE_DOUBLE, build.vmReg(ra), build.constDouble(protok.value.n));
         build.inst(IrCmd::STORE_TAG, build.vmReg(ra), build.constTag(LUA_TNUMBER));
     }
-    else if (FFlag::LuauCodegenLoadTVTag)
+    else
     {
         // Tag could be LUA_TSTRING or LUA_TVECTOR; for TSTRING we could generate LOAD_POINTER/STORE_POINTER/STORE_TAG, but it's not profitable;
         // however, it's still valuable to preserve the tag throughout the optimization pipeline to eliminate tag checks.
         IrOp load = build.inst(IrCmd::LOAD_TVALUE, build.vmConst(k), build.constInt(0), build.constTag(protok.tt));
-        build.inst(IrCmd::STORE_TVALUE, build.vmReg(ra), load);
-    }
-    else
-    {
-        // Remaining tag here right now is LUA_TSTRING, while it can be transformed to LOAD_POINTER/STORE_POINTER/STORE_TAG, it's not profitable right
-        // now
-        IrOp load = build.inst(IrCmd::LOAD_TVALUE, build.vmConst(k));
         build.inst(IrCmd::STORE_TVALUE, build.vmReg(ra), load);
     }
 }
@@ -1204,19 +1198,19 @@ void translateInstGetTableKS(IrBuilder& build, const Instruction* pc, int pcpos)
         TString* str = gco2ts(build.function.proto->k[aux].value.gc);
         const char* field = getstr(str);
 
-        if (*field == 'X' || *field == 'x')
+        if ((!FFlag::LuauCodegenFixVectorFields || str->len == 1) && (*field == 'X' || *field == 'x'))
         {
             IrOp value = build.inst(IrCmd::LOAD_FLOAT, build.vmReg(rb), build.constInt(0));
             build.inst(IrCmd::STORE_DOUBLE, build.vmReg(ra), value);
             build.inst(IrCmd::STORE_TAG, build.vmReg(ra), build.constTag(LUA_TNUMBER));
         }
-        else if (*field == 'Y' || *field == 'y')
+        else if ((!FFlag::LuauCodegenFixVectorFields || str->len == 1) && (*field == 'Y' || *field == 'y'))
         {
             IrOp value = build.inst(IrCmd::LOAD_FLOAT, build.vmReg(rb), build.constInt(4));
             build.inst(IrCmd::STORE_DOUBLE, build.vmReg(ra), value);
             build.inst(IrCmd::STORE_TAG, build.vmReg(ra), build.constTag(LUA_TNUMBER));
         }
-        else if (*field == 'Z' || *field == 'z')
+        else if ((!FFlag::LuauCodegenFixVectorFields || str->len == 1) && (*field == 'Z' || *field == 'z'))
         {
             IrOp value = build.inst(IrCmd::LOAD_FLOAT, build.vmReg(rb), build.constInt(8));
             build.inst(IrCmd::STORE_DOUBLE, build.vmReg(ra), value);
@@ -1227,6 +1221,14 @@ void translateInstGetTableKS(IrBuilder& build, const Instruction* pc, int pcpos)
             build.inst(IrCmd::FALLBACK_GETTABLEKS, build.constUint(pcpos), build.vmReg(ra), build.vmReg(rb), build.vmConst(aux));
         }
 
+        return;
+    }
+
+    if (FFlag::LuauCodegenDirectUserdataFlow && bcTypes.a == LBC_TYPE_USERDATA)
+    {
+        build.inst(IrCmd::CHECK_TAG, tb, build.constTag(LUA_TUSERDATA), build.vmExit(pcpos));
+
+        build.inst(IrCmd::FALLBACK_GETTABLEKS, build.constUint(pcpos), build.vmReg(ra), build.vmReg(rb), build.vmConst(aux));
         return;
     }
 
@@ -1256,10 +1258,20 @@ void translateInstSetTableKS(IrBuilder& build, const Instruction* pc, int pcpos)
     int rb = LUAU_INSN_B(*pc);
     uint32_t aux = pc[1];
 
-    IrOp fallback = build.block(IrBlockKind::Fallback);
     BytecodeTypes bcTypes = build.function.getBytecodeTypesAt(pcpos);
 
     IrOp tb = build.inst(IrCmd::LOAD_TAG, build.vmReg(rb));
+
+    if (FFlag::LuauCodegenDirectUserdataFlow && bcTypes.a == LBC_TYPE_USERDATA)
+    {
+        build.inst(IrCmd::CHECK_TAG, tb, build.constTag(LUA_TUSERDATA), build.vmExit(pcpos));
+
+        build.inst(IrCmd::FALLBACK_SETTABLEKS, build.constUint(pcpos), build.vmReg(ra), build.vmReg(rb), build.vmConst(aux));
+        return;
+    }
+
+    IrOp fallback = build.block(IrBlockKind::Fallback);
+
     build.inst(IrCmd::CHECK_TAG, tb, build.constTag(LUA_TTABLE), bcTypes.a == LBC_TYPE_TABLE ? build.vmExit(pcpos) : fallback);
 
     IrOp vb = build.inst(IrCmd::LOAD_POINTER, build.vmReg(rb));
@@ -1370,12 +1382,31 @@ void translateInstNamecall(IrBuilder& build, const Instruction* pc, int pcpos)
     int rb = LUAU_INSN_B(*pc);
     uint32_t aux = pc[1];
 
+    BytecodeTypes bcTypes = build.function.getBytecodeTypesAt(pcpos);
+
+    if (FFlag::LuauCodegenDirectUserdataFlow && bcTypes.a == LBC_TYPE_VECTOR)
+    {
+        build.loadAndCheckTag(build.vmReg(rb), LUA_TVECTOR, build.vmExit(pcpos));
+
+        build.inst(IrCmd::FALLBACK_NAMECALL, build.constUint(pcpos), build.vmReg(ra), build.vmReg(rb), build.vmConst(aux));
+        return;
+    }
+
+    if (FFlag::LuauCodegenDirectUserdataFlow && bcTypes.a == LBC_TYPE_USERDATA)
+    {
+        build.loadAndCheckTag(build.vmReg(rb), LUA_TUSERDATA, build.vmExit(pcpos));
+
+        build.inst(IrCmd::FALLBACK_NAMECALL, build.constUint(pcpos), build.vmReg(ra), build.vmReg(rb), build.vmConst(aux));
+        return;
+    }
+
     IrOp next = build.blockAtInst(pcpos + getOpLength(LOP_NAMECALL));
     IrOp fallback = build.block(IrBlockKind::Fallback);
     IrOp firstFastPathSuccess = build.block(IrBlockKind::Internal);
     IrOp secondFastPath = build.block(IrBlockKind::Internal);
 
-    build.loadAndCheckTag(build.vmReg(rb), LUA_TTABLE, fallback);
+    build.loadAndCheckTag(
+        build.vmReg(rb), LUA_TTABLE, FFlag::LuauCodegenDirectUserdataFlow && bcTypes.a == LBC_TYPE_TABLE ? build.vmExit(pcpos) : fallback);
     IrOp table = build.inst(IrCmd::LOAD_POINTER, build.vmReg(rb));
 
     CODEGEN_ASSERT(build.function.proto);

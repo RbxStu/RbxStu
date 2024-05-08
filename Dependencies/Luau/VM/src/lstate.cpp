@@ -9,7 +9,6 @@
 #include "lgc.h"
 #include "ldo.h"
 #include "ldebug.h"
-#include "StudioOffsets.h"
 
 /*
 ** Main thread combines a thread state and the global state
@@ -111,7 +110,7 @@ static void close_state(lua_State* L)
 lua_State* luaE_newthread(lua_State* L)
 {
     return RBX::Studio::Functions::rluaE_newthread(L);
-    /*lua_State* L1 = luaM_newgco(L, lua_State, sizeof(lua_State), L->activememcat);
+    lua_State* L1 = luaM_newgco(L, lua_State, sizeof(lua_State), L->activememcat);
     luaC_init(L, L1, LUA_TTHREAD);
     preinit_state(L1, L->global);
     L1->activememcat = L->activememcat; // inherit the active memory category
@@ -119,7 +118,7 @@ lua_State* luaE_newthread(lua_State* L)
     L1->gt = L->gt;                     // share table of globals
     L1->singlestep = L->singlestep;
     LUAU_ASSERT(iswhite(obj2gco(L1)));
-    return L1;*/
+    return L1;
 }
 
 void luaE_freethread(lua_State* L, lua_State* L1, lua_Page* page)
@@ -206,6 +205,7 @@ lua_State* lua_newstate(lua_Alloc f, void* ud)
         g->freepages[i] = NULL;
         g->freegcopages[i] = NULL;
     }
+    g->allpages = NULL;
     g->allgcopages = NULL;
     g->sweepgcopage = NULL;
     for (i = 0; i < LUA_T_COUNT; i++)

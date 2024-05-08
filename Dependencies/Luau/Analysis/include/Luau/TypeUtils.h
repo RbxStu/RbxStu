@@ -62,6 +62,8 @@ std::optional<TypeId> findTablePropertyRespectingMeta(
 std::optional<TypeId> findTablePropertyRespectingMeta(
     NotNull<BuiltinTypes> builtinTypes, ErrorVec& errors, TypeId ty, const std::string& name, ValueContext context, Location location);
 
+bool occursCheck(TypeId needle, TypeId haystack);
+
 // Returns the minimum and maximum number of types the argument list can accept.
 std::pair<size_t, std::optional<size_t>> getParameterExtents(const TxnLog* log, TypePackId tp, bool includeHiddenVariadics = false);
 
@@ -195,6 +197,15 @@ const T* get(std::optional<Ty> ty)
 {
     if (ty)
         return get<T>(*ty);
+    else
+        return nullptr;
+}
+
+template<typename T, typename Ty>
+T* getMutable(std::optional<Ty> ty)
+{
+    if (ty)
+        return getMutable<T>(*ty);
     else
         return nullptr;
 }

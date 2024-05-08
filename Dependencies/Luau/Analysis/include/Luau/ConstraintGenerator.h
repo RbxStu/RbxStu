@@ -95,10 +95,6 @@ struct ConstraintGenerator
     // will enqueue them during solving.
     std::vector<ConstraintPtr> unqueuedConstraints;
 
-    // Type family instances created by the generator. This is used to ensure
-    // that these instances are reduced fully by the solver.
-    std::vector<TypeId> familyInstances;
-
     // The private scope of type aliases for which the type parameters belong to.
     DenseHashMap<const AstStatTypeAlias*, ScopePtr> astTypeAliasDefiningScopes{nullptr};
 
@@ -169,7 +165,7 @@ private:
      */
     ScopePtr childScope(AstNode* node, const ScopePtr& parent);
 
-    std::optional<TypeId> lookup(const ScopePtr& scope, DefId def, bool prototype = true);
+    std::optional<TypeId> lookup(const ScopePtr& scope, Location location, DefId def, bool prototype = true);
 
     /**
      * Adds a new constraint with no dependencies to a given scope.
@@ -246,7 +242,7 @@ private:
     Inference check(const ScopePtr& scope, AstExprConstantBool* bool_, std::optional<TypeId> expectedType, bool forceSingleton);
     Inference check(const ScopePtr& scope, AstExprLocal* local);
     Inference check(const ScopePtr& scope, AstExprGlobal* global);
-    Inference checkIndexName(const ScopePtr& scope, const RefinementKey* key, AstExpr* indexee, std::string index);
+    Inference checkIndexName(const ScopePtr& scope, const RefinementKey* key, AstExpr* indexee, const std::string& index, Location indexLocation);
     Inference check(const ScopePtr& scope, AstExprIndexName* indexName);
     Inference check(const ScopePtr& scope, AstExprIndexExpr* indexExpr);
     Inference check(const ScopePtr& scope, AstExprFunction* func, std::optional<TypeId> expectedType, bool generalize);
@@ -264,8 +260,8 @@ private:
         std::optional<TypeId> assignedTy;
     };
 
-    LValueBounds checkLValue(const ScopePtr& scope, AstExpr* expr, bool transform);
-    LValueBounds checkLValue(const ScopePtr& scope, AstExprLocal* local, bool transform);
+    LValueBounds checkLValue(const ScopePtr& scope, AstExpr* expr);
+    LValueBounds checkLValue(const ScopePtr& scope, AstExprLocal* local);
     LValueBounds checkLValue(const ScopePtr& scope, AstExprGlobal* global);
     LValueBounds checkLValue(const ScopePtr& scope, AstExprIndexName* indexName);
     LValueBounds checkLValue(const ScopePtr& scope, AstExprIndexExpr* indexExpr);

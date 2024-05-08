@@ -9,9 +9,27 @@
 using namespace Luau;
 
 LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution);
-LUAU_FASTFLAG(LuauTransitiveSubtyping);
 
 TEST_SUITE_BEGIN("UnionTypes");
+
+TEST_CASE_FIXTURE(Fixture, "fuzzer_union_with_one_part_assertion")
+{
+    CheckResult result = check(R"(
+local _ = {},nil
+repeat
+
+_,_ = if _.number == "" or _.number or _._ then
+             _
+      elseif _.__index == _._G then
+            tostring
+      elseif _ then
+             _
+      else
+           ``,_._G
+
+until _._
+    )");
+}
 
 TEST_CASE_FIXTURE(Fixture, "return_types_can_be_disjoint")
 {
@@ -573,7 +591,8 @@ TEST_CASE_FIXTURE(Fixture, "indexing_into_a_cyclic_union_doesnt_crash")
     UnionType u;
 
     u.options.push_back(badCyclicUnionTy);
-    u.options.push_back(arena.addType(TableType{{}, TableIndexer{builtinTypes->numberType, builtinTypes->numberType}, TypeLevel{}, frontend.globals.globalScope.get(), TableState::Sealed}));
+    u.options.push_back(arena.addType(TableType{
+        {}, TableIndexer{builtinTypes->numberType, builtinTypes->numberType}, TypeLevel{}, frontend.globals.globalScope.get(), TableState::Sealed}));
 
     asMutable(badCyclicUnionTy)->ty.emplace<UnionType>(std::move(u));
 
@@ -867,10 +886,6 @@ TEST_CASE_FIXTURE(Fixture, "optional_any")
 
 TEST_CASE_FIXTURE(Fixture, "generic_function_with_optional_arg")
 {
-    ScopedFastFlag sff[] = {
-        {FFlag::LuauTransitiveSubtyping, true},
-    };
-
     CheckResult result = check(R"(
         function f<T>(x : T?) : {T}
             local result = {}

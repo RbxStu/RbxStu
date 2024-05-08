@@ -9,7 +9,6 @@
 #include "lnumutils.h"
 #include "ldo.h"
 #include "lbuffer.h"
-#include "StudioOffsets.h"
 
 #include <math.h>
 #include <string.h>

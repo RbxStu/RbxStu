@@ -17,9 +17,8 @@
 LUAU_FASTINTVARIABLE(LuauCodeGenMinLinearBlockPath, 3)
 LUAU_FASTINTVARIABLE(LuauCodeGenReuseSlotLimit, 64)
 LUAU_FASTFLAGVARIABLE(DebugLuauAbortingChecks, false)
-LUAU_FASTFLAG(LuauCodegenRemoveDeadStores4)
-LUAU_FASTFLAG(LuauCodegenLoadTVTag)
-LUAU_FASTFLAGVARIABLE(LuauCodegenInferNumTag, false)
+LUAU_FASTFLAG(LuauCodegenRemoveDeadStores5)
+LUAU_FASTFLAGVARIABLE(LuauCodegenLoadPropCheckRegLinkInTv, false)
 
 namespace Luau
 {
@@ -609,7 +608,7 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
 
                 if (state.tryGetTag(source) == value)
                 {
-                    if (FFlag::DebugLuauAbortingChecks && !FFlag::LuauCodegenRemoveDeadStores4)
+                    if (FFlag::DebugLuauAbortingChecks && !FFlag::LuauCodegenRemoveDeadStores5)
                         replace(function, block, index, {IrCmd::CHECK_TAG, inst.a, inst.b, build.undef()});
                     else
                         kill(function, inst);
@@ -719,7 +718,7 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
                     if (arg->cmd == IrCmd::TAG_VECTOR)
                         tag = LUA_TVECTOR;
 
-                    if (FFlag::LuauCodegenLoadTVTag && arg->cmd == IrCmd::LOAD_TVALUE && arg->c.kind != IrOpKind::None)
+                    if (arg->cmd == IrCmd::LOAD_TVALUE && arg->c.kind != IrOpKind::None)
                         tag = function.tagOp(arg->c);
                 }
             }
@@ -738,9 +737,10 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
             IrCmd activeLoadCmd = IrCmd::NOP;
             uint32_t activeLoadValue = kInvalidInstIdx;
 
-            if (tag != 0xff)
+            // If we know the tag, we can try extracting the value from a register used by LOAD_TVALUE
+            // To do that, we have to ensure that the register link of the source value is still valid
+            if (tag != 0xff && (!FFlag::LuauCodegenLoadPropCheckRegLinkInTv || state.tryGetRegLink(inst.b) != nullptr))
             {
-                // If we know the tag, try to extract the value from a register used by LOAD_TVALUE
                 if (IrInst* arg = function.asInstOp(inst.b); arg && arg->cmd == IrCmd::LOAD_TVALUE && arg->a.kind == IrOpKind::VmReg)
                 {
                     std::tie(activeLoadCmd, activeLoadValue) = state.getPreviousVersionedLoadForTag(tag, arg->a);
@@ -895,59 +895,34 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
     case IrCmd::CHECK_TAG:
     {
         uint8_t b = function.tagOp(inst.b);
+        uint8_t tag = state.tryGetTag(inst.a);
 
-        if (FFlag::LuauCodegenInferNumTag)
+        if (tag == 0xff)
         {
-            uint8_t tag = state.tryGetTag(inst.a);
-
-            if (tag == 0xff)
+            if (IrOp value = state.tryGetValue(inst.a); value.kind == IrOpKind::Constant)
             {
-                if (IrOp value = state.tryGetValue(inst.a); value.kind == IrOpKind::Constant)
-                {
-                    if (function.constOp(value).kind == IrConstKind::Double)
-                        tag = LUA_TNUMBER;
-                }
+                if (function.constOp(value).kind == IrConstKind::Double)
+                    tag = LUA_TNUMBER;
             }
+        }
 
-            if (tag != 0xff)
+        if (tag != 0xff)
+        {
+            if (tag == b)
             {
-                if (tag == b)
-                {
-                    if (FFlag::DebugLuauAbortingChecks)
-                        replace(function, inst.c, build.undef());
-                    else
-                        kill(function, inst);
-                }
+                if (FFlag::DebugLuauAbortingChecks)
+                    replace(function, inst.c, build.undef());
                 else
-                {
-                    replace(function, block, index, {IrCmd::JUMP, inst.c}); // Shows a conflict in assumptions on this path
-                }
+                    kill(function, inst);
             }
             else
             {
-                state.updateTag(inst.a, b); // We can assume the tag value going forward
+                replace(function, block, index, {IrCmd::JUMP, inst.c}); // Shows a conflict in assumptions on this path
             }
         }
         else
         {
-            if (uint8_t tag = state.tryGetTag(inst.a); tag != 0xff)
-            {
-                if (tag == b)
-                {
-                    if (FFlag::DebugLuauAbortingChecks)
-                        replace(function, inst.c, build.undef());
-                    else
-                        kill(function, inst);
-                }
-                else
-                {
-                    replace(function, block, index, {IrCmd::JUMP, inst.c}); // Shows a conflict in assumptions on this path
-                }
-            }
-            else
-            {
-                state.updateTag(inst.a, b); // We can assume the tag value going forward
-            }
+            state.updateTag(inst.a, b); // We can assume the tag value going forward
         }
         break;
     }
@@ -1100,7 +1075,7 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
 
     case IrCmd::FASTCALL:
     {
-        if (FFlag::LuauCodegenRemoveDeadStores4)
+        if (FFlag::LuauCodegenRemoveDeadStores5)
         {
             LuauBuiltinFunction bfid = LuauBuiltinFunction(function.uintOp(inst.a));
             int firstReturnReg = vmRegOp(inst.b);

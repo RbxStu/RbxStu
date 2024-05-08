@@ -22,16 +22,18 @@ typedef union GCObject GCObject;
 /*
 ** Common header in struct form
 */
-typedef struct GCheader {
+typedef struct GCheader
+{
     CommonHeader;
 } GCheader;
 
 /*
 ** Union of all Lua values
 */
-typedef union {
-    GCObject *gc;
-    void *p;
+typedef union
+{
+    GCObject* gc;
+    void* p;
     double n;
     int b;
     float v[2]; // v[0], v[1] live here; v[2] lives in TValue::extra
@@ -41,7 +43,8 @@ typedef union {
 ** Tagged Values
 */
 
-typedef struct lua_TValue {
+typedef struct lua_TValue
+{
     Value value;
     int extra[LUA_EXTRA_SIZE];
     int tt;
@@ -227,19 +230,21 @@ typedef struct lua_TValue {
 
 #define iscollectable(o) (ttype(o) >= LUA_TSTRING)
 
-typedef TValue *StkId; // index to stack elements
+typedef TValue* StkId; // index to stack elements
 
 /*
 ** String headers for string table
 */
-typedef struct TString {
+typedef struct TString
+{
     CommonHeader;
     // 1 byte padding
 
     int16_t atom;
+
     // 2 byte padding
 
-    TString *next; // next string in the hash table bucket
+    TString* next; // next string in the hash table bucket
 
     unsigned int hash;
     unsigned int len;
@@ -247,30 +252,35 @@ typedef struct TString {
     char data[1]; // string data is allocated right after the header
 } TString;
 
+
 #define getstr(ts) (ts)->data
 #define svalue(o) getstr(tsvalue(o))
 
-typedef struct Udata {
+typedef struct Udata
+{
     CommonHeader;
 
     uint8_t tag;
 
     int len;
 
-    struct Table *metatable;
+    struct Table* metatable;
 
-    union {
+    union
+    {
         char data[1];      // userdata is allocated right after the header
         L_Umaxalign dummy; // ensures maximum alignment for data
     };
 } Udata;
 
-typedef struct Buffer {
+typedef struct Buffer
+{
     CommonHeader;
 
     unsigned int len;
 
-    union {
+    union
+    {
         char data[1];      // buffer is allocated right after the header
         L_Umaxalign dummy; // ensures maximum alignment for data
     };
@@ -280,7 +290,8 @@ typedef struct Buffer {
 ** Function Prototypes
 */
 // clang-format off
-typedef struct Proto {
+typedef struct Proto
+{
     CommonHeader;
 
 
@@ -291,29 +302,29 @@ typedef struct Proto {
     uint8_t flags;
 
 
-    TValue *k;              // constants used by the function
-    Instruction *code;      // function bytecode
-    struct Proto **p;       // functions defined inside the function
-    const Instruction *codeentry;
+    TValue* k;              // constants used by the function
+    Instruction* code;      // function bytecode
+    struct Proto** p;       // functions defined inside the function
+    const Instruction* codeentry;
 
-    void *execdata;
+    void* execdata;
     uintptr_t exectarget;
 
 
-    uint8_t *lineinfo;      // for each instruction, line number as a delta from baseline
-    int *abslineinfo;       // baseline line info, one entry for each 1<<linegaplog2 instructions; allocated after lineinfo
-    struct LocVar *locvars; // information about local variables
-    TString **upvalues;     // upvalue names
-    TString *source;
+    uint8_t* lineinfo;      // for each instruction, line number as a delta from baseline
+    int* abslineinfo;       // baseline line info, one entry for each 1<<linegaplog2 instructions; allocated after lineinfo
+    struct LocVar* locvars; // information about local variables
+    TString** upvalues;     // upvalue names
+    TString* source;
 
-    TString *debugname;
-    uint8_t *debuginsn; // a copy of code[] array with just opcodes
+    TString* debugname;
+    uint8_t* debuginsn; // a copy of code[] array with just opcodes
 
-    uint8_t *typeinfo;
+    uint8_t* typeinfo;
 
-    void *userdata;
+    void* userdata;
 
-    GCObject *gclist;
+    GCObject* gclist;
 
 
     int sizecode;
@@ -325,11 +336,13 @@ typedef struct Proto {
     int linegaplog2;
     int linedefined;
     int bytecodeid;
+    int sizetypeinfo;
 } Proto;
 // clang-format on
 
-typedef struct LocVar {
-    TString *varname;
+typedef struct LocVar
+{
+    TString* varname;
     int startpc; // first point where variable is active
     int endpc;   // first point where variable is dead
     uint8_t reg; // register slot, relative to base, where variable is stored
@@ -339,22 +352,25 @@ typedef struct LocVar {
 ** Upvalues
 */
 
-typedef struct UpVal {
+typedef struct UpVal
+{
     CommonHeader;
     uint8_t markedopen; // set if reachable from an alive thread (only valid during atomic)
 
     // 4 byte padding (x64)
 
-    TValue *v; // points to stack or to its own value
-    union {
+    TValue* v; // points to stack or to its own value
+    union
+    {
         TValue value; // the value (when closed)
-        struct {
+        struct
+        {
             // global double linked list (when open)
-            struct UpVal *prev;
-            struct UpVal *next;
+            struct UpVal* prev;
+            struct UpVal* next;
 
             // thread linked list (when open)
-            struct UpVal *threadnext;
+            struct UpVal* threadnext;
         } open;
     } u;
 } UpVal;
@@ -365,7 +381,8 @@ typedef struct UpVal {
 ** Closures
 */
 
-typedef struct Closure {
+typedef struct Closure
+{
     CommonHeader;
 
     uint8_t isC;
@@ -373,19 +390,22 @@ typedef struct Closure {
     uint8_t stacksize;
     uint8_t preload;
 
-    GCObject *gclist;
-    struct Table *env;
+    GCObject* gclist;
+    struct Table* env;
 
-    union {
-        struct {
+    union
+    {
+        struct
+        {
             lua_CFunction f;
             lua_Continuation cont;
-            const char *debugname;
+            const char* debugname;
             TValue upvals[1];
         } c;
 
-        struct {
-            struct Proto *p;
+        struct
+        {
+            struct Proto* p;
             TValue uprefs[1];
         } l;
     };
@@ -398,14 +418,16 @@ typedef struct Closure {
 ** Tables
 */
 
-typedef struct TKey {
+typedef struct TKey
+{
     ::Value value;
     int extra[LUA_EXTRA_SIZE];
-    unsigned tt: 4;
-    int next: 28; // for chaining
+    unsigned tt : 4;
+    int next : 28; // for chaining
 } TKey;
 
-typedef struct LuaNode {
+typedef struct LuaNode
+{
     TValue val;
     TKey key;
 } LuaNode;
@@ -433,7 +455,8 @@ typedef struct LuaNode {
     }
 
 // clang-format off
-typedef struct Table {
+typedef struct Table
+{
     CommonHeader;
 
 
@@ -444,16 +467,17 @@ typedef struct Table {
     uint8_t nodemask8; // (1<<lsizenode)-1, truncated to 8 bits
 
     int sizearray; // size of `array' array
-    union {
+    union
+    {
         int lastfree;  // any free position is before this position
         int aboundary; // negated 'boundary' of `array' array; iff aboundary < 0
     };
 
 
-    struct Table *metatable;
-    TValue *array;  // array part
-    LuaNode *node;
-    GCObject *gclist;
+    struct Table* metatable;
+    TValue* array;  // array part
+    LuaNode* node;
+    GCObject* gclist;
 } Table;
 // clang-format on
 
@@ -472,15 +496,9 @@ LUAI_DATA const TValue luaO_nilobject_;
 #define ceillog2(x) (luaO_log2((x)-1) + 1)
 
 LUAI_FUNC int luaO_log2(unsigned int x);
-
-LUAI_FUNC int luaO_rawequalObj(const TValue *t1, const TValue *t2);
-
-LUAI_FUNC int luaO_rawequalKey(const TKey *t1, const TValue *t2);
-
-LUAI_FUNC int luaO_str2d(const char *s, double *result);
-
-LUAI_FUNC const char *luaO_pushvfstring(lua_State *L, const char *fmt, va_list argp);
-
-LUAI_FUNC const char *luaO_pushfstring(lua_State *L, const char *fmt, ...);
-
-LUAI_FUNC const char *luaO_chunkid(char *buf, size_t buflen, const char *source, size_t srclen);
+LUAI_FUNC int luaO_rawequalObj(const TValue* t1, const TValue* t2);
+LUAI_FUNC int luaO_rawequalKey(const TKey* t1, const TValue* t2);
+LUAI_FUNC int luaO_str2d(const char* s, double* result);
+LUAI_FUNC const char* luaO_pushvfstring(lua_State* L, const char* fmt, va_list argp);
+LUAI_FUNC const char* luaO_pushfstring(lua_State* L, const char* fmt, ...);
+LUAI_FUNC const char* luaO_chunkid(char* buf, size_t buflen, const char* source, size_t srclen);

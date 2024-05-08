@@ -8,7 +8,6 @@
 #include "lgc.h"
 #include "ldo.h"
 #include "lnumutils.h"
-#include "StudioOffsets.h"
 
 #include <string.h>
 

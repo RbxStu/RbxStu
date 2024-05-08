@@ -23,23 +23,41 @@ bool Instantiation2::isDirty(TypePackId tp)
 
 TypeId Instantiation2::clean(TypeId ty)
 {
-    TypeId substTy = genericSubstitutions[ty];
+    TypeId substTy = follow(genericSubstitutions[ty]);
     const FreeType* ft = get<FreeType>(substTy);
 
     // violation of the substitution invariant if this is not a free type.
     LUAU_ASSERT(ft);
 
     // if we didn't learn anything about the lower bound, we pick the upper bound instead.
-    if (get<NeverType>(ft->lowerBound))
-        return ft->upperBound;
-
     // we default to the lower bound which represents the most specific type for the free type.
-    return ft->lowerBound;
+    TypeId res = get<NeverType>(ft->lowerBound) ? ft->upperBound : ft->lowerBound;
+
+    // Instantiation should not traverse into the type that we are substituting for.
+    dontTraverseInto(res);
+
+    return res;
 }
 
 TypePackId Instantiation2::clean(TypePackId tp)
 {
-    return genericPackSubstitutions[tp];
+    TypePackId res = genericPackSubstitutions[tp];
+    dontTraverseInto(res);
+    return res;
+}
+
+std::optional<TypeId> instantiate2(
+    TypeArena* arena, DenseHashMap<TypeId, TypeId> genericSubstitutions, DenseHashMap<TypePackId, TypePackId> genericPackSubstitutions, TypeId ty)
+{
+    Instantiation2 instantiation{arena, std::move(genericSubstitutions), std::move(genericPackSubstitutions)};
+    return instantiation.substitute(ty);
+}
+
+std::optional<TypePackId> instantiate2(
+    TypeArena* arena, DenseHashMap<TypeId, TypeId> genericSubstitutions, DenseHashMap<TypePackId, TypePackId> genericPackSubstitutions, TypePackId tp)
+{
+    Instantiation2 instantiation{arena, std::move(genericSubstitutions), std::move(genericPackSubstitutions)};
+    return instantiation.substitute(tp);
 }
 
 } // namespace Luau

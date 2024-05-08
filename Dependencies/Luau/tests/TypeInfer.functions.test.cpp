@@ -20,7 +20,25 @@ LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution);
 LUAU_FASTFLAG(LuauAlwaysCommitInferencesOfFunctionCalls);
 LUAU_FASTINT(LuauTarjanChildLimit);
 
+LUAU_DYNAMIC_FASTFLAG(LuauImproveNonFunctionCallError)
+
 TEST_SUITE_BEGIN("TypeInferFunctions");
+
+TEST_CASE_FIXTURE(Fixture, "general_case_table_literal_blocks")
+{
+    CheckResult result = check(R"(
+--!strict
+function f(x : {[any]: number})
+   return x
+end
+
+local Foo = {bar = "$$$"}
+
+f({[Foo.bar] = 0})
+)");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
 
 TEST_CASE_FIXTURE(Fixture, "overload_resolution")
 {
@@ -2113,10 +2131,20 @@ TEST_CASE_FIXTURE(Fixture, "attempt_to_call_an_intersection_of_tables")
 
     LUAU_REQUIRE_ERROR_COUNT(1, result);
 
-    if (FFlag::DebugLuauDeferredConstraintResolution)
-        CHECK_EQ(toString(result.errors[0]), "Cannot call non-function { x: number } & { y: string }");
+    if (DFFlag::LuauImproveNonFunctionCallError)
+    {
+        if (FFlag::DebugLuauDeferredConstraintResolution)
+            CHECK_EQ(toString(result.errors[0]), "Cannot call a value of type { x: number } & { y: string }");
+        else
+            CHECK_EQ(toString(result.errors[0]), "Cannot call a value of type {| x: number |}");
+    }
     else
-        CHECK_EQ(toString(result.errors[0]), "Cannot call non-function {| x: number |}");
+    {
+        if (FFlag::DebugLuauDeferredConstraintResolution)
+            CHECK_EQ(toString(result.errors[0]), "Cannot call non-function { x: number } & { y: string }");
+        else
+            CHECK_EQ(toString(result.errors[0]), "Cannot call non-function {| x: number |}");
+    }
 }
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "attempt_to_call_an_intersection_of_tables_with_call_metamethod")
@@ -2341,7 +2369,7 @@ end
     auto err = get<ExplicitFunctionAnnotationRecommended>(result.errors.back());
     LUAU_ASSERT(err);
     CHECK("number" == toString(err->recommendedReturn));
-    CHECK(err->recommendedArgs.size() == 2);
+    REQUIRE(err->recommendedArgs.size() == 2);
     CHECK("number" == toString(err->recommendedArgs[0].second));
     CHECK("number" == toString(err->recommendedArgs[1].second));
 }
@@ -2471,6 +2499,175 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "function_that_could_return_anything_is_compa
 
         -- "Returns an unknown number of values" is close enough to "returns no values."
         a(foo)
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(Fixture, "self_application_does_not_segfault")
+{
+    (void)check(R"(
+        function f(a)
+            f(f)
+            return f(), a
+        end
+    )");
+
+    // We only care that type checking completes without tripping a crash or an assertion.
+}
+
+TEST_CASE_FIXTURE(Fixture, "function_definition_in_a_do_block")
+{
+    CheckResult result = check(R"(
+        local f
+        do
+            function f()
+            end
+        end
+        f()
+    )");
+
+    // We are predominantly interested in this test not crashing.
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "function_definition_in_a_do_block_with_global")
+{
+    CheckResult result = check(R"(
+        function f() print("a") end
+        do
+            function f()
+                print("b")
+            end
+        end
+        f()
+    )");
+
+    // We are predominantly interested in this test not crashing.
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(Fixture, "fuzzer_alias_global_function_doesnt_hit_nil_assert")
+{
+    CheckResult result = check(R"(
+function _()
+end
+local function l0()
+    function _()
+    end
+end
+_ = _
+)");
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(Fixture, "fuzzer_bug_missing_follow_causes_assertion")
+{
+    CheckResult result = check(R"(
+local _ = ({_=function()
+return _
+end,}),true,_[_()]
+for l0=_[_[_[`{function(l0)
+end}`]]],_[_.n6[_[_.n6]]],_[_[_.n6[_[_.n6]]]] do
+_ += if _ then ""
+end
+return _
+)");
+}
+
+TEST_CASE_FIXTURE(Fixture, "cannot_call_union_of_functions")
+{
+    CheckResult result = check(R"(
+        local f: (() -> ()) | (() -> () -> ()) = nil :: any
+        f()
+    )");
+
+    LUAU_REQUIRE_ERROR_COUNT(1, result);
+
+    if (DFFlag::LuauImproveNonFunctionCallError)
+    {
+        std::string expected = R"(Cannot call a value of the union type:
+  | () -> ()
+  | () -> () -> ()
+We are unable to determine the appropriate result type for such a call.)";
+
+        CHECK(expected == toString(result.errors[0]));
+    }
+    else
+        CHECK("Cannot call non-function (() -> () -> ()) | (() -> ())" == toString(result.errors[0]));
+}
+
+TEST_CASE_FIXTURE(Fixture, "fuzzer_missing_follow_in_ast_stat_fun")
+{
+    (void)check(R"(
+        local _ = function<t0...>()
+        end ~= _
+
+        while (_) do
+            _,_,_,_,_,_,_,_,_,_._,_ = nil
+            function _(...):<t0...>()->()
+            end
+            function _<t0...>(...):any
+                _ ..= ...
+            end
+            _,_,_,_,_,_,_,_,_,_,_ = nil
+        end
+    )");
+}
+
+TEST_CASE_FIXTURE(Fixture, "unifier_should_not_bind_free_types")
+{
+    CheckResult result = check(R"(
+        function foo(player)
+            local success,result = player:thing()
+            if(success) then
+                return "Successfully posted message.";
+            elseif(not result) then
+                return false;
+            else
+                return result;
+            end
+        end
+    )");
+
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+    {
+        // The new solver should ideally be able to do better here, but this is no worse than the old solver.
+
+        LUAU_REQUIRE_ERROR_COUNT(2, result);
+
+        auto tm1 = get<TypePackMismatch>(result.errors[0]);
+        REQUIRE(tm1);
+        CHECK(toString(tm1->wantedTp) == "string");
+        CHECK(toString(tm1->givenTp) == "boolean");
+
+        auto tm2 = get<TypePackMismatch>(result.errors[1]);
+        REQUIRE(tm2);
+        CHECK(toString(tm2->wantedTp) == "string");
+        CHECK(toString(tm2->givenTp) == "~(false?)");
+    }
+    else
+    {
+        LUAU_REQUIRE_ERROR_COUNT(1, result);
+
+        const TypeMismatch* tm = get<TypeMismatch>(result.errors[0]);
+        REQUIRE(tm);
+        CHECK(toString(tm->wantedType) == "string");
+        CHECK(toString(tm->givenType) == "boolean");
+    }
+}
+
+TEST_CASE_FIXTURE(Fixture, "captured_local_is_assigned_a_function")
+{
+    CheckResult result = check(R"(
+        local f
+
+        local function g()
+            f()
+        end
+
+        function f()
+        end
     )");
 
     LUAU_REQUIRE_NO_ERRORS(result);

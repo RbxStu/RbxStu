@@ -75,9 +75,6 @@ struct ConstraintSolver
     // A constraint can be both blocked and unsolved, for instance.
     std::vector<NotNull<const Constraint>> unsolvedConstraints;
 
-    // This is a set of type families that need to be reduced after all constraints have been dispatched.
-    DenseHashSet<TypeId> familyInstances{nullptr};
-
     // A mapping of constraint pointer to how many things the constraint is
     // blocked on. Can be empty or 0 for constraints that are not blocked on
     // anything.
@@ -93,6 +90,9 @@ struct ConstraintSolver
 
     // A mapping from free types to the number of unresolved constraints that mention them.
     DenseHashMap<TypeId, size_t> unresolvedConstraints{{}};
+
+    // Irreducible/uninhabited type families or type pack families.
+    DenseHashSet<const void*> uninhabitedTypeFamilies{{}};
 
     // Recorded errors that take place within the solver.
     ErrorVec errors;
@@ -127,7 +127,6 @@ struct ConstraintSolver
     bool tryDispatch(const SubtypeConstraint& c, NotNull<const Constraint> constraint, bool force);
     bool tryDispatch(const PackSubtypeConstraint& c, NotNull<const Constraint> constraint, bool force);
     bool tryDispatch(const GeneralizationConstraint& c, NotNull<const Constraint> constraint, bool force);
-    bool tryDispatch(const InstantiationConstraint& c, NotNull<const Constraint> constraint, bool force);
     bool tryDispatch(const IterableConstraint& c, NotNull<const Constraint> constraint, bool force);
     bool tryDispatch(const NameConstraint& c, NotNull<const Constraint> constraint);
     bool tryDispatch(const TypeAliasExpansionConstraint& c, NotNull<const Constraint> constraint);
@@ -137,22 +136,18 @@ struct ConstraintSolver
     bool tryDispatch(const HasPropConstraint& c, NotNull<const Constraint> constraint);
     bool tryDispatch(const SetPropConstraint& c, NotNull<const Constraint> constraint);
 
-    bool tryDispatchHasIndexer(int& recursionDepth, NotNull<const Constraint> constraint, TypeId subjectType, TypeId indexType, TypeId resultType);
+    bool tryDispatchHasIndexer(
+        int& recursionDepth, NotNull<const Constraint> constraint, TypeId subjectType, TypeId indexType, TypeId resultType, Set<TypeId>& seen);
     bool tryDispatch(const HasIndexerConstraint& c, NotNull<const Constraint> constraint);
 
-    /// (dispatched, found) where
-    /// - dispatched: this constraint can be considered having dispatched.
-    /// - found: true if adding an indexer for a particular type was allowed.
-    std::pair<bool, bool> tryDispatchSetIndexer(NotNull<const Constraint> constraint, TypeId subjectType, TypeId indexType, TypeId propType, bool expandFreeTypeBounds);
+    std::pair<bool, std::optional<TypeId>> tryDispatchSetIndexer(
+        NotNull<const Constraint> constraint, TypeId subjectType, TypeId indexType, TypeId propType, bool expandFreeTypeBounds);
     bool tryDispatch(const SetIndexerConstraint& c, NotNull<const Constraint> constraint, bool force);
-
-    bool tryDispatch(const SingletonOrTopTypeConstraint& c, NotNull<const Constraint> constraint);
 
     bool tryDispatchUnpack1(NotNull<const Constraint> constraint, TypeId resultType, TypeId sourceType, bool resultIsLValue);
     bool tryDispatch(const UnpackConstraint& c, NotNull<const Constraint> constraint);
     bool tryDispatch(const Unpack1Constraint& c, NotNull<const Constraint> constraint);
 
-    bool tryDispatch(const SetOpConstraint& c, NotNull<const Constraint> constraint, bool force);
     bool tryDispatch(const ReduceConstraint& c, NotNull<const Constraint> constraint, bool force);
     bool tryDispatch(const ReducePackConstraint& c, NotNull<const Constraint> constraint, bool force);
     bool tryDispatch(const EqualityConstraint& c, NotNull<const Constraint> constraint, bool force);

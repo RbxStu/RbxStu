@@ -15,6 +15,8 @@
 
 LUAU_FASTINTVARIABLE(LuauIndentTypeMismatchMaxTypeLength, 10)
 
+LUAU_DYNAMIC_FASTFLAGVARIABLE(LuauImproveNonFunctionCallError, false)
+
 static std::string wrongNumberOfArgsString(
     size_t expectedCount, std::optional<size_t> maximumCount, size_t actualCount, const char* argPrefix = nullptr, bool isVariadic = false)
 {
@@ -335,8 +337,65 @@ struct ErrorConverter
         return e.message;
     }
 
+    std::optional<TypeId> findCallMetamethod(TypeId type) const
+    {
+        type = follow(type);
+
+        std::optional<TypeId> metatable;
+        if (const MetatableType* mtType = get<MetatableType>(type))
+            metatable = mtType->metatable;
+        else if (const ClassType* classType = get<ClassType>(type))
+            metatable = classType->metatable;
+
+        if (!metatable)
+            return std::nullopt;
+
+        TypeId unwrapped = follow(*metatable);
+
+        if (get<AnyType>(unwrapped))
+            return unwrapped;
+
+        const TableType* mtt = getTableType(unwrapped);
+        if (!mtt)
+            return std::nullopt;
+
+        auto it = mtt->props.find("__call");
+        if (it != mtt->props.end())
+            return it->second.type();
+        else
+            return std::nullopt;
+    }
+
     std::string operator()(const Luau::CannotCallNonFunction& e) const
     {
+        if (DFFlag::LuauImproveNonFunctionCallError)
+        {
+            if (auto unionTy = get<UnionType>(follow(e.ty)))
+            {
+                std::string err = "Cannot call a value of the union type:";
+
+                for (auto option : unionTy)
+                {
+                    option = follow(option);
+
+                    if (get<FunctionType>(option) || findCallMetamethod(option))
+                    {
+                        err += "\n  | " + toString(option);
+                        continue;
+                    }
+
+                    // early-exit if we find something that isn't callable in the union.
+                    return "Cannot call a value of type " + toString(option) + " in union:\n  " + toString(e.ty);
+                }
+
+                err += "\nWe are unable to determine the appropriate result type for such a call.";
+
+                return err;
+            }
+
+            return "Cannot call a value of type " + toString(e.ty);
+        }
+
         return "Cannot call non-function " + toString(e.ty);
     }
     std::string operator()(const Luau::ExtraInformation& e) const
@@ -590,6 +649,25 @@ struct ErrorConverter
     std::string operator()(const UnexpectedTypePackInSubtyping& e) const
     {
         return "Encountered an unexpected type pack in subtyping: " + toString(e.tp);
+    }
+
+    std::string operator()(const CannotAssignToNever& e) const
+    {
+        std::string result = "Cannot assign a value of type " + toString(e.rhsType) + " to a field of type never";
+
+        switch (e.reason)
+        {
+        case CannotAssignToNever::Reason::PropertyNarrowed:
+            if (!e.cause.empty())
+            {
+                result += "\ncaused by the property being given the following incompatible types:\n";
+                for (auto ty : e.cause)
+                    result += "    " + toString(ty) + "\n";
+                result += "There are no values that could safely satisfy all of these types at once.";
+            }
+        }
+
+        return result;
     }
 };
 
@@ -950,6 +1028,20 @@ bool UnexpectedTypePackInSubtyping::operator==(const UnexpectedTypePackInSubtypi
     return tp == rhs.tp;
 }
 
+bool CannotAssignToNever::operator==(const CannotAssignToNever& rhs) const
+{
+    if (cause.size() != rhs.cause.size())
+        return false;
+
+    for (size_t i = 0; i < cause.size(); ++i)
+    {
+        if (*cause[i] != *rhs.cause[i])
+            return false;
+    }
+
+    return *rhsType == *rhs.rhsType && reason == rhs.reason;
+}
+
 std::string toString(const TypeError& error)
 {
     return toString(error, TypeErrorToStringOptions{});
@@ -1140,6 +1232,13 @@ void copyError(T& e, TypeArena& destArena, CloneState& cloneState)
         e.ty = clone(e.ty);
     else if constexpr (std::is_same_v<T, UnexpectedTypePackInSubtyping>)
         e.tp = clone(e.tp);
+    else if constexpr (std::is_same_v<T, CannotAssignToNever>)
+    {
+        e.rhsType = clone(e.rhsType);
+
+        for (auto& ty : e.cause)
+            ty = clone(ty);
+    }
     else
         static_assert(always_false_v<T>, "Non-exhaustive type switch");
 }

@@ -552,6 +552,27 @@ struct TypeFamilyInstanceType
 
     std::vector<TypeId> typeArguments;
     std::vector<TypePackId> packArguments;
+
+    TypeFamilyInstanceType(NotNull<const TypeFamily> family, std::vector<TypeId> typeArguments, std::vector<TypePackId> packArguments)
+        : family(family)
+        , typeArguments(typeArguments)
+        , packArguments(packArguments)
+    {
+    }
+
+    TypeFamilyInstanceType(const TypeFamily& family, std::vector<TypeId> typeArguments)
+        : family{&family}
+        , typeArguments(typeArguments)
+        , packArguments{}
+    {
+    }
+
+    TypeFamilyInstanceType(const TypeFamily& family, std::vector<TypeId> typeArguments, std::vector<TypePackId> packArguments)
+        : family{&family}
+        , typeArguments(typeArguments)
+        , packArguments(packArguments)
+    {
+    }
 };
 
 /** Represents a pending type alias instantiation.
@@ -1081,5 +1102,8 @@ LUAU_NOINLINE T* emplaceType(Type* ty, Args&&... args)
 {
     return &ty->ty.emplace<T>(std::forward<Args>(args)...);
 }
+
+template<>
+LUAU_NOINLINE Unifiable::Bound<TypeId>* emplaceType<BoundType>(Type* ty, TypeId& tyArg);
 
 } // namespace Luau

@@ -9,6 +9,7 @@
 #include "Luau/RecursionCounter.h"
 #include "Luau/StringUtils.h"
 #include "Luau/ToString.h"
+#include "Luau/TypeFamily.h"
 #include "Luau/TypeInfer.h"
 #include "Luau/TypePack.h"
 #include "Luau/VecDeque.h"
@@ -422,6 +423,9 @@ bool maybeSingleton(TypeId ty)
         for (TypeId part : itv)
             if (maybeSingleton(part)) // will i regret this?
                 return true;
+    if (const TypeFamilyInstanceType* tfit = get<TypeFamilyInstanceType>(ty))
+        if (tfit->family->name == "keyof" || tfit->family->name == "rawkeyof")
+            return true;
     return false;
 }
 
@@ -542,13 +546,15 @@ BlockedType::BlockedType()
 {
 }
 
-Constraint* BlockedType::getOwner() const {
+Constraint* BlockedType::getOwner() const
+{
     return owner;
 }
 
-void BlockedType::setOwner(Constraint* newOwner) {
+void BlockedType::setOwner(Constraint* newOwner)
+{
     LUAU_ASSERT(owner == nullptr);
-    
+
     if (owner != nullptr)
         return;
 
@@ -1316,6 +1322,13 @@ bool GenericTypeDefinition::operator==(const GenericTypeDefinition& rhs) const
 bool GenericTypePackDefinition::operator==(const GenericTypePackDefinition& rhs) const
 {
     return tp == rhs.tp && defaultValue == rhs.defaultValue;
+}
+
+template<>
+LUAU_NOINLINE Unifiable::Bound<TypeId>* emplaceType<BoundType>(Type* ty, TypeId& tyArg)
+{
+    LUAU_ASSERT(ty != follow(tyArg));
+    return &ty->ty.emplace<BoundType>(tyArg);
 }
 
 } // namespace Luau

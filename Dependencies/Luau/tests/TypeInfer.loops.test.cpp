@@ -17,6 +17,8 @@ using namespace Luau;
 LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution)
 LUAU_FASTFLAG(LuauOkWithIteratingOverTableProperties)
 
+LUAU_DYNAMIC_FASTFLAG(LuauImproveNonFunctionCallError)
+
 TEST_SUITE_BEGIN("TypeInferLoops");
 
 TEST_CASE_FIXTURE(Fixture, "for_loop")
@@ -165,7 +167,11 @@ TEST_CASE_FIXTURE(Fixture, "for_in_loop_should_fail_with_non_function_iterator")
     )");
 
     LUAU_REQUIRE_ERROR_COUNT(1, result);
-    CHECK_EQ("Cannot call non-function string", toString(result.errors[0]));
+
+    if (DFFlag::LuauImproveNonFunctionCallError)
+        CHECK_EQ("Cannot call a value of type string", toString(result.errors[0]));
+    else
+        CHECK_EQ("Cannot call non-function string", toString(result.errors[0]));
 }
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "for_in_with_just_one_iterator_is_ok")
@@ -1068,6 +1074,44 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "iter_mm_results_are_lvalue")
     )");
 
     LUAU_REQUIRE_NO_ERRORS(result);
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "forin_metatable_no_iter_mm")
+{
+    ScopedFastFlag sff{FFlag::DebugLuauDeferredConstraintResolution, true};
+
+    CheckResult result = check(R"(
+        local t = setmetatable({1, 2, 3}, {})
+
+        for i, v in t do
+            print(i, v)
+        end
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+
+    CHECK_EQ("number", toString(requireTypeAtPosition({4, 18})));
+    CHECK_EQ("number", toString(requireTypeAtPosition({4, 21})));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "forin_metatable_iter_mm")
+{
+    ScopedFastFlag sff{FFlag::DebugLuauDeferredConstraintResolution, true};
+
+    CheckResult result = check(R"(
+        type Iterable<T...> = typeof(setmetatable({}, {} :: {
+            __iter: (Iterable<T...>) -> () -> T...
+        }))
+
+        for i, v in {} :: Iterable<...number> do
+            print(i, v)
+        end
+    )");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+
+    CHECK_EQ("number", toString(requireTypeAtPosition({6, 18})));
+    CHECK_EQ("number", toString(requireTypeAtPosition({6, 21})));
 }
 
 TEST_SUITE_END();

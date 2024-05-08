@@ -19,7 +19,6 @@
 LUAU_FASTFLAG(LuauFixLocationSpanTableIndexExpr);
 LUAU_FASTFLAG(DebugLuauDeferredConstraintResolution);
 LUAU_FASTFLAG(LuauInstantiateInSubtyping);
-LUAU_FASTFLAG(LuauTransitiveSubtyping);
 LUAU_FASTINT(LuauCheckRecursionLimit);
 LUAU_FASTINT(LuauNormalizeCacheLimit);
 LUAU_FASTINT(LuauRecursionLimit);
@@ -783,7 +782,10 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "no_heap_use_after_free_error")
         end
     )");
 
-    LUAU_REQUIRE_ERRORS(result);
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+        LUAU_REQUIRE_NO_ERRORS(result);
+    else
+        LUAU_REQUIRE_ERRORS(result);
 }
 
 TEST_CASE_FIXTURE(Fixture, "infer_type_assertion_value_type")
@@ -977,6 +979,41 @@ TEST_CASE_FIXTURE(Fixture, "fuzzer_found_this")
             function():(typeof(p),typeof(_))
             end
         )[nil]
+    )");
+}
+
+/*
+ * We had a bug where we'd improperly cache the normalization of types that are
+ * not fully solved yet.  This eventually caused a crash elsewhere in the type
+ * solver.
+ */
+TEST_CASE_FIXTURE(BuiltinsFixture, "fuzzer_found_this_2")
+{
+    (void)check(R"(
+        local _
+        if _ then
+            _ = _
+            while _() do
+                _ = # _
+            end
+        end
+    )");
+}
+
+TEST_CASE_FIXTURE(Fixture, "indexing_a_cyclic_intersection_does_not_crash")
+{
+    (void)check(R"(
+        local _
+        if _ then
+            while nil do
+                _ = _
+            end
+        end
+        if _[if _ then ""] then
+            while nil do
+                _ = if _ then ""
+            end
+        end
     )");
 }
 
@@ -1272,9 +1309,6 @@ TEST_CASE_FIXTURE(Fixture, "dcr_delays_expansion_of_function_containing_blocked_
 {
     ScopedFastFlag sff[] = {
         {FFlag::DebugLuauDeferredConstraintResolution, true},
-        // If we run this with error-suppression, it triggers an assertion.
-        // FATAL ERROR: Assertion failed: !"Internal error: Trying to normalize a BlockedType"
-        {FFlag::LuauTransitiveSubtyping, false},
     };
 
     CheckResult result = check(R"(
@@ -1485,6 +1519,57 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "be_sure_to_use_active_txnlog_when_evaluating
 
     for (const auto& e : result.errors)
         CHECK(5 == e.location.begin.line);
+}
+
+/*
+ * We had an issue where this kind of typeof() call could produce the untestable type ~{}
+ */
+TEST_CASE_FIXTURE(Fixture, "typeof_cannot_refine_builtin_alias")
+{
+    GlobalTypes& globals = frontend.globals;
+    TypeArena& arena = globals.globalTypes;
+
+    unfreeze(arena);
+
+    globals.globalScope->exportedTypeBindings["GlobalTable"] = TypeFun{{}, arena.addType(TableType{TableState::Sealed, TypeLevel{}})};
+
+    freeze(arena);
+
+    (void) check(R"(
+        function foo(x)
+            if typeof(x) == 'GlobalTable' then
+            end
+        end
+    )");
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "bad_iter_metamethod")
+{
+    CheckResult result = check(R"(
+        function iter(): unknown
+            return nil
+        end
+
+        local a = {__iter = iter}
+        setmetatable(a, a)
+
+        for i in a do
+        end
+    )");
+
+    if (FFlag::DebugLuauDeferredConstraintResolution)
+    {
+        LUAU_REQUIRE_ERROR_COUNT(1, result);
+
+        CannotCallNonFunction* ccnf = get<CannotCallNonFunction>(result.errors[0]);
+        REQUIRE(ccnf);
+
+        CHECK("unknown" == toString(ccnf->ty));
+    }
+    else
+    {
+        LUAU_REQUIRE_NO_ERRORS(result);
+    }
 }
 
 TEST_SUITE_END();

@@ -7,7 +7,7 @@
 #include "ludata.h"
 #include "ltable.h"
 #include "lgc.h"
-#include "StudioOffsets.h"
+
 #include <string.h>
 
 // clang-format off

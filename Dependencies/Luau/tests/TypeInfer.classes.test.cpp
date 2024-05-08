@@ -17,6 +17,39 @@ LUAU_FASTFLAG(LuauAlwaysCommitInferencesOfFunctionCalls);
 
 TEST_SUITE_BEGIN("TypeInferClasses");
 
+TEST_CASE_FIXTURE(ClassFixture, "Luau.Analyze.CLI_crashes_on_this_test")
+{
+    CheckResult result = check(R"(
+        local CircularQueue = {}
+CircularQueue.__index = CircularQueue
+
+function CircularQueue:new()
+	local newCircularQueue = {
+		head = nil,
+	}
+	setmetatable(newCircularQueue, CircularQueue)
+
+	return newCircularQueue
+end
+
+function CircularQueue:push()
+	local newListNode
+
+	if self.head then
+		newListNode = {
+			prevNode = self.head.prevNode,
+			nextNode = self.head,
+		}
+		newListNode.prevNode.nextNode = newListNode
+		newListNode.nextNode.prevNode = newListNode
+	end
+end
+
+return CircularQueue
+
+    )");
+}
+
 TEST_CASE_FIXTURE(ClassFixture, "call_method_of_a_class")
 {
     CheckResult result = check(R"(
@@ -648,32 +681,20 @@ TEST_CASE_FIXTURE(Fixture, "read_write_class_properties")
     unfreeze(arena);
 
     TypeId instanceType = arena.addType(ClassType{"Instance", {}, nullopt, nullopt, {}, {}, "Test"});
-    getMutable<ClassType>(instanceType)->props = {
-        {"Parent", Property::rw(instanceType)}
-    };
+    getMutable<ClassType>(instanceType)->props = {{"Parent", Property::rw(instanceType)}};
 
     //
 
     TypeId workspaceType = arena.addType(ClassType{"Workspace", {}, nullopt, nullopt, {}, {}, "Test"});
 
-    TypeId scriptType = arena.addType(ClassType{
-        "Script", {
-            {"Parent", Property::rw(workspaceType, instanceType)}
-        },
-        instanceType, nullopt, {}, {}, "Test"
-    });
+    TypeId scriptType =
+        arena.addType(ClassType{"Script", {{"Parent", Property::rw(workspaceType, instanceType)}}, instanceType, nullopt, {}, {}, "Test"});
 
-    TypeId partType = arena.addType(ClassType{
-        "Part", {
-            {"BrickColor", Property::rw(builtinTypes->stringType)},
-            {"Parent", Property::rw(workspaceType, instanceType)}
-        },
-        instanceType, nullopt, {}, {}, "Test"});
+    TypeId partType = arena.addType(
+        ClassType{"Part", {{"BrickColor", Property::rw(builtinTypes->stringType)}, {"Parent", Property::rw(workspaceType, instanceType)}},
+            instanceType, nullopt, {}, {}, "Test"});
 
-    getMutable<ClassType>(workspaceType)->props = {
-        {"Script", Property::readonly(scriptType)},
-        {"Part", Property::readonly(partType)}
-    };
+    getMutable<ClassType>(workspaceType)->props = {{"Script", Property::readonly(scriptType)}, {"Part", Property::readonly(partType)}};
 
     frontend.globals.globalScope->bindings[frontend.globals.globalNames.names->getOrAdd("script")] = Binding{scriptType};
 
@@ -703,7 +724,8 @@ TEST_CASE_FIXTURE(ClassFixture, "cannot_index_a_class_with_no_indexer")
 
     LUAU_REQUIRE_ERROR_COUNT(1, result);
 
-    CHECK_MESSAGE(get<DynamicPropertyLookupOnClassesUnsafe>(result.errors[0]), "Expected DynamicPropertyLookupOnClassesUnsafe but got " << result.errors[0]);
+    CHECK_MESSAGE(
+        get<DynamicPropertyLookupOnClassesUnsafe>(result.errors[0]), "Expected DynamicPropertyLookupOnClassesUnsafe but got " << result.errors[0]);
 
     CHECK(builtinTypes->errorType == requireType("c"));
 }

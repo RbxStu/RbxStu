@@ -13,14 +13,8 @@ namespace Luau
 
 static bool isLiteral(const AstExpr* expr)
 {
-    return (
-        expr->is<AstExprTable>() ||
-        expr->is<AstExprFunction>() ||
-        expr->is<AstExprConstantNumber>() ||
-        expr->is<AstExprConstantString>() ||
-        expr->is<AstExprConstantBool>() ||
-        expr->is<AstExprConstantNil>()
-    );
+    return (expr->is<AstExprTable>() || expr->is<AstExprFunction>() || expr->is<AstExprConstantNumber>() || expr->is<AstExprConstantString>() ||
+            expr->is<AstExprConstantBool>() || expr->is<AstExprConstantNil>());
 }
 
 // A fast approximation of subTy <: superTy
@@ -52,7 +46,7 @@ static std::optional<TypeId> extractMatchingTableType(std::vector<TypeId>& table
     size_t tableCount = 0;
     std::optional<TypeId> firstTable;
 
-    for (TypeId ty: tables)
+    for (TypeId ty : tables)
     {
         ty = follow(ty);
         if (auto tt = get<TableType>(ty))
@@ -65,7 +59,7 @@ static std::optional<TypeId> extractMatchingTableType(std::vector<TypeId>& table
                 firstTable = ty;
             ++tableCount;
 
-            for (const auto& [name, expectedProp]: tt->props)
+            for (const auto& [name, expectedProp] : tt->props)
             {
                 if (!expectedProp.readTy)
                     continue;
@@ -91,14 +85,12 @@ static std::optional<TypeId> extractMatchingTableType(std::vector<TypeId>& table
 
                 if (ft && get<SingletonType>(ft->lowerBound))
                 {
-                    if (fastIsSubtype(builtinTypes->booleanType, ft->upperBound) &&
-                        fastIsSubtype(expectedType, builtinTypes->booleanType))
+                    if (fastIsSubtype(builtinTypes->booleanType, ft->upperBound) && fastIsSubtype(expectedType, builtinTypes->booleanType))
                     {
                         return ty;
                     }
 
-                    if (fastIsSubtype(builtinTypes->stringType, ft->upperBound) &&
-                        fastIsSubtype(expectedType, ft->lowerBound))
+                    if (fastIsSubtype(builtinTypes->stringType, ft->upperBound) && fastIsSubtype(expectedType, ft->lowerBound))
                     {
                         return ty;
                     }
@@ -116,16 +108,9 @@ static std::optional<TypeId> extractMatchingTableType(std::vector<TypeId>& table
     return std::nullopt;
 }
 
-TypeId matchLiteralType(
-    NotNull<DenseHashMap<const AstExpr*, TypeId>> astTypes,
-    NotNull<DenseHashMap<const AstExpr*, TypeId>> astExpectedTypes,
-    NotNull<BuiltinTypes> builtinTypes,
-    NotNull<TypeArena> arena,
-    NotNull<Unifier2> unifier,
-    TypeId expectedType,
-    TypeId exprType,
-    const AstExpr* expr
-)
+TypeId matchLiteralType(NotNull<DenseHashMap<const AstExpr*, TypeId>> astTypes, NotNull<DenseHashMap<const AstExpr*, TypeId>> astExpectedTypes,
+    NotNull<BuiltinTypes> builtinTypes, NotNull<TypeArena> arena, NotNull<Unifier2> unifier, TypeId expectedType, TypeId exprType,
+    const AstExpr* expr, std::vector<TypeId>& toBlock)
 {
     /*
      * Table types that arise from literal table expressions have some
@@ -156,17 +141,14 @@ TypeId matchLiteralType(
     if (expr->is<AstExprConstantString>())
     {
         auto ft = get<FreeType>(exprType);
-        if (ft &&
-            get<SingletonType>(ft->lowerBound) &&
-            fastIsSubtype(builtinTypes->stringType, ft->upperBound) &&
-            fastIsSubtype(ft->lowerBound, builtinTypes->stringType)
-        )
+        if (ft && get<SingletonType>(ft->lowerBound) && fastIsSubtype(builtinTypes->stringType, ft->upperBound) &&
+            fastIsSubtype(ft->lowerBound, builtinTypes->stringType))
         {
             // if the upper bound is a subtype of the expected type, we can push the expected type in
             Relation upperBoundRelation = relate(ft->upperBound, expectedType);
             if (upperBoundRelation == Relation::Subset || upperBoundRelation == Relation::Coincident)
             {
-                asMutable(exprType)->ty.emplace<BoundType>(expectedType);
+                emplaceType<BoundType>(asMutable(exprType), expectedType);
                 return exprType;
             }
 
@@ -176,7 +158,7 @@ TypeId matchLiteralType(
             Relation lowerBoundRelation = relate(ft->lowerBound, expectedType);
             if (lowerBoundRelation == Relation::Subset || lowerBoundRelation == Relation::Coincident)
             {
-                asMutable(exprType)->ty.emplace<BoundType>(expectedType);
+                emplaceType<BoundType>(asMutable(exprType), expectedType);
                 return exprType;
             }
         }
@@ -184,17 +166,14 @@ TypeId matchLiteralType(
     else if (expr->is<AstExprConstantBool>())
     {
         auto ft = get<FreeType>(exprType);
-        if (ft &&
-            get<SingletonType>(ft->lowerBound) &&
-            fastIsSubtype(builtinTypes->booleanType, ft->upperBound) &&
-            fastIsSubtype(ft->lowerBound, builtinTypes->booleanType)
-        )
+        if (ft && get<SingletonType>(ft->lowerBound) && fastIsSubtype(builtinTypes->booleanType, ft->upperBound) &&
+            fastIsSubtype(ft->lowerBound, builtinTypes->booleanType))
         {
             // if the upper bound is a subtype of the expected type, we can push the expected type in
             Relation upperBoundRelation = relate(ft->upperBound, expectedType);
             if (upperBoundRelation == Relation::Subset || upperBoundRelation == Relation::Coincident)
             {
-                asMutable(exprType)->ty.emplace<BoundType>(expectedType);
+                emplaceType<BoundType>(asMutable(exprType), expectedType);
                 return exprType;
             }
 
@@ -204,7 +183,7 @@ TypeId matchLiteralType(
             Relation lowerBoundRelation = relate(ft->lowerBound, expectedType);
             if (lowerBoundRelation == Relation::Subset || lowerBoundRelation == Relation::Coincident)
             {
-                asMutable(exprType)->ty.emplace<BoundType>(expectedType);
+                emplaceType<BoundType>(asMutable(exprType), expectedType);
                 return exprType;
             }
         }
@@ -214,7 +193,7 @@ TypeId matchLiteralType(
     {
         if (auto ft = get<FreeType>(exprType); ft && fastIsSubtype(ft->upperBound, expectedType))
         {
-            asMutable(exprType)->ty.emplace<BoundType>(expectedType);
+            emplaceType<BoundType>(asMutable(exprType), expectedType);
             return exprType;
         }
 
@@ -244,7 +223,7 @@ TypeId matchLiteralType(
 
                 if (tt)
                 {
-                    TypeId res = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, *tt, exprType, expr);
+                    TypeId res = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, *tt, exprType, expr, toBlock);
 
                     parts.push_back(res);
                     return arena->addType(UnionType{std::move(parts)});
@@ -254,7 +233,7 @@ TypeId matchLiteralType(
             return exprType;
         }
 
-        for (const AstExprTable::Item& item: exprTable->items)
+        for (const AstExprTable::Item& item : exprTable->items)
         {
             if (isRecord(item))
             {
@@ -281,7 +260,8 @@ TypeId matchLiteralType(
                         (*astExpectedTypes)[item.key] = expectedTableTy->indexer->indexType;
                         (*astExpectedTypes)[item.value] = expectedTableTy->indexer->indexResultType;
 
-                        TypeId matchedType = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, expectedTableTy->indexer->indexResultType, propTy, item.value);
+                        TypeId matchedType = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier,
+                            expectedTableTy->indexer->indexResultType, propTy, item.value, toBlock);
 
                         if (tableTy->indexer)
                             unifier->unify(matchedType, tableTy->indexer->indexResultType);
@@ -311,19 +291,22 @@ TypeId matchLiteralType(
                 // quadratic in a hurry.
                 if (expectedProp.isShared())
                 {
-                    matchedType = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, *expectedReadTy, propTy, item.value);
+                    matchedType =
+                        matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, *expectedReadTy, propTy, item.value, toBlock);
                     prop.readTy = matchedType;
                     prop.writeTy = matchedType;
                 }
                 else if (expectedReadTy)
                 {
-                    matchedType = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, *expectedReadTy, propTy, item.value);
+                    matchedType =
+                        matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, *expectedReadTy, propTy, item.value, toBlock);
                     prop.readTy = matchedType;
                     prop.writeTy.reset();
                 }
                 else if (expectedWriteTy)
                 {
-                    matchedType = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, *expectedWriteTy, propTy, item.value);
+                    matchedType =
+                        matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, *expectedWriteTy, propTy, item.value, toBlock);
                     prop.readTy.reset();
                     prop.writeTy = matchedType;
                 }
@@ -351,14 +334,31 @@ TypeId matchLiteralType(
                     LUAU_ASSERT(propTy);
 
                     unifier->unify(expectedTableTy->indexer->indexType, builtinTypes->numberType);
-                    TypeId matchedType = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier, expectedTableTy->indexer->indexResultType, *propTy, item.value);
+                    TypeId matchedType = matchLiteralType(astTypes, astExpectedTypes, builtinTypes, arena, unifier,
+                        expectedTableTy->indexer->indexResultType, *propTy, item.value, toBlock);
 
                     tableTy->indexer->indexResultType = matchedType;
                 }
             }
             else if (item.kind == AstExprTable::Item::General)
             {
-                LUAU_ASSERT(!"TODO");
+
+                // We have { ..., [blocked] : somePropExpr, ...}
+                // If blocked resolves to a string, we will then take care of this above
+                // If it resolves to some other kind of expression, we don't have a way of folding this information into indexer
+                // because there is no named prop to remove
+                // We should just block here
+                const TypeId* keyTy = astTypes->find(item.key);
+                LUAU_ASSERT(keyTy);
+                TypeId tKey = follow(*keyTy);
+                if (get<BlockedType>(tKey))
+                    toBlock.push_back(tKey);
+
+                const TypeId* propTy = astTypes->find(item.value);
+                LUAU_ASSERT(propTy);
+                TypeId tProp = follow(*propTy);
+                if (get<BlockedType>(tProp))
+                    toBlock.push_back(tProp);
             }
             else
                 LUAU_ASSERT(!"Unexpected");
@@ -377,7 +377,7 @@ TypeId matchLiteralType(
         for (const auto& [name, _] : expectedTableTy->props)
             missingKeys.insert(name);
 
-        for (const AstExprTable::Item& item: exprTable->items)
+        for (const AstExprTable::Item& item : exprTable->items)
         {
             if (item.key)
             {
@@ -388,7 +388,7 @@ TypeId matchLiteralType(
             }
         }
 
-        for (const auto& key: missingKeys)
+        for (const auto& key : missingKeys)
         {
             LUAU_ASSERT(key.has_value());
 
@@ -413,4 +413,4 @@ TypeId matchLiteralType(
     return exprType;
 }
 
-}
+} // namespace Luau
