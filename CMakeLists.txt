@@ -30,7 +30,7 @@ add_library(Module SHARED
         Communication.hpp
         Environment/CryptLibrary.cpp
         Scanner.cpp
-        Dependencies/TBS.hpp
+        Log.cpp
         # RBXScheduler.cpp
 )
 target_include_directories(Module PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

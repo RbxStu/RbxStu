@@ -12,7 +12,8 @@
 #include <string>
 #include "Security.hpp"
 
-// This class dictates the way execution is performed. It contains many utilities and required functions to Execute luau bytecode.
+// This class dictates the way execution is performed. It contains many utilities and required functions to Execute luau
+// bytecode.
 class [[maybe_unused]] Execution {
 private:
     static Execution *singleton;
@@ -20,7 +21,7 @@ private:
 public:
     static Execution *get_singleton();
 
-    int register_environment(lua_State *L, bool useInitScript);
+    int register_environment(lua_State *L, bool useInitScript, _In_ _Out_ int *schedulerKey);
 
     int lua_loadstring(lua_State *L, const std::string &code, std::string chunkName, RBX::Identity identity);
 

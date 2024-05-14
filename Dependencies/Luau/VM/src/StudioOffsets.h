@@ -6,6 +6,7 @@
 #include "Windows.h"
 #include <cstdint>
 
+struct lua_TValue;
 #define RebaseAddress(x) (x - 0x140000000 + reinterpret_cast<uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")))
 
 namespace RBX::Studio::Offsets {
@@ -71,7 +72,7 @@ struct lua_State;
 
 namespace FunctionTypes {
     using luau_execute = void(__fastcall*)(lua_State* L);
-    using pseudo2addr = void*(__fastcall*)(lua_State* L, int32_t lua_index);
+    using pseudo2addr = lua_TValue*(__fastcall*)(lua_State* L, int32_t lua_index);
     using rTask_defer = int(__fastcall*)(lua_State* L);
     using rluaE_newthread = lua_State*(__fastcall*)(lua_State* L);
     using rlua_newthread = lua_State*(__fastcall*)(lua_State* L);
@@ -96,6 +97,7 @@ namespace RBX::Studio::Functions {
     const static auto rLuaC_Step = reinterpret_cast<FunctionTypes::rLuaC_Step>(RBX::Studio::Offsets::rLuaC_Step);
     const static auto fireproximityprompt = reinterpret_cast<FunctionTypes::fireproximityprompt>(RBX::Studio::Offsets::fireproximityprompt);
     const static auto pushinstance = reinterpret_cast<FunctionTypes::pushinstance>(RBX::Studio::Offsets::pushinstance);
+    const static auto pseudo2addr = reinterpret_cast<FunctionTypes::pseudo2addr>(RBX::Studio::Offsets::pseudo2addr);
 } // namespace RBX::Studio::Functions
 
 /*

@@ -8,30 +8,7 @@
 typedef int64_t (*Validator)(int64_t testAgainst, struct lua_State *testWith);
 
 namespace RBX::Lua {
-    struct OriginalExtraSpace { // Used for pointer validation, DO NOT USE.
-        [[maybe_unused]] char _1[8];
-        [[maybe_unused]] char _8[8];
-        [[maybe_unused]] char _10[8];
-        void *sharedExtraSpace;
-        [[maybe_unused]] char _20[8];
-        Validator *CapabilitiesValidator;
-        uint32_t identity;
-        [[maybe_unused]] char _38[9];
-        [[maybe_unused]] char _40[8];
-        uint32_t capabilities;
-        [[maybe_unused]] char _50[9];
-        [[maybe_unused]] char _58[8];
-        [[maybe_unused]] char _60[8];
-        [[maybe_unused]] char _68[8];
-        [[maybe_unused]] char _70[8];
-        [[maybe_unused]] char _78[8];
-        [[maybe_unused]] char _80[8];
-        [[maybe_unused]] char _88[8];
-        [[maybe_unused]] char _90[1];
-        [[maybe_unused]] char _91[1];
-        [[maybe_unused]] char _92[1];
-        uint8_t taskStatus;
-    };
+
     struct ExtraSpace {
         struct Shared {
             int32_t threadCount;
@@ -63,7 +40,30 @@ namespace RBX::Lua {
         [[maybe_unused]] char _91[1];
         [[maybe_unused]] char _92[1];
         uint8_t taskStatus;
-        uint8_t executor_thread_mark;
+    };
+    struct OriginalExtraSpace { // Used for pointer validation, DO NOT USE.
+        [[maybe_unused]] char _1[8];
+        [[maybe_unused]] char _8[8];
+        [[maybe_unused]] char _10[8];
+        struct RBX::Lua::ExtraSpace::Shared *sharedExtraSpace;
+        [[maybe_unused]] char _20[8];
+        Validator *CapabilitiesValidator;
+        uint32_t identity;
+        [[maybe_unused]] char _38[9];
+        [[maybe_unused]] char _40[8];
+        uint32_t capabilities;
+        [[maybe_unused]] char _50[9];
+        [[maybe_unused]] char _58[8];
+        [[maybe_unused]] char _60[8];
+        [[maybe_unused]] char _68[8];
+        [[maybe_unused]] char _70[8];
+        [[maybe_unused]] char _78[8];
+        [[maybe_unused]] char _80[8];
+        [[maybe_unused]] char _88[8];
+        [[maybe_unused]] char _90[1];
+        [[maybe_unused]] char _91[1];
+        [[maybe_unused]] char _92[1];
+        uint8_t taskStatus;
     };
 } // namespace RBX::Lua
 
@@ -74,9 +74,6 @@ namespace RBX {
         int64_t deobfuscate_identity(RBX::Identity identity);
 
         int64_t to_obfuscated_identity(int64_t identity);
-
-        // Marks a lua_State as ours for the purposes of Check Caller, etc.
-        void MarkThread(lua_State *L);
 
         namespace Bypasses {
             void wipe_proto(Closure *lClosure);

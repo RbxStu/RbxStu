@@ -4,6 +4,8 @@
 #include "Environment.hpp"
 #include <iostream>
 #include <lz4.h>
+#include <shared_mutex>
+
 #include "Closures.hpp"
 #include "Dependencies/HttpStatus.hpp"
 #include "Dependencies/Termcolor.hpp"
@@ -41,10 +43,11 @@ int getreg(lua_State *L) {
         printf("--- getreg invoked ---\r\n");
     }
     auto scheduler{Scheduler::get_singleton()};
-
+    scheduler->lock_scheduler();
     L->top->tt = LUA_TTABLE;
     L->top->value = scheduler->get_global_roblox_state()->global->registry.value;
     L->top++;
+    scheduler->unlock_scheduler();
     return 1;
 }
 
@@ -62,9 +65,12 @@ int getrenv(lua_State *L) {
     }
     auto scheduler{Scheduler::get_singleton()};
 
+    scheduler->lock_scheduler();
     lua_State *gL = scheduler->get_global_roblox_state();
     lua_pushvalue(gL, LUA_GLOBALSINDEX);
     lua_xmove(gL, L, 1);
+    scheduler->unlock_scheduler();
+
     return 1;
 }
 
@@ -235,11 +241,14 @@ int checkcaller(lua_State *L) {
      *
      */
 
+    auto scheduler{Scheduler::get_singleton()};
     const auto *extraSpace = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
-
+    scheduler->lock_scheduler();
     // We must include a better checkcaller, at least for the future, this gayass check is killing me so bad.
-    lua_pushboolean(L, extraSpace != nullptr && L->gt == Scheduler::get_singleton()->get_global_executor_state()->gt &&
+    lua_pushboolean(L, extraSpace != nullptr && Scheduler::get_singleton()->get_global_executor_state() != nullptr &&
+                               L->gt == Scheduler::get_singleton()->get_global_executor_state()->gt &&
                                ((extraSpace->identity >= 4 && extraSpace->identity <= 9)));
+    scheduler->unlock_scheduler();
     // Check identity, the main thread of our original thread HAS to match up as well, else it is not one of our states
     // at ALL! That is also another way we can check with the identity!
     return 1;
@@ -802,14 +811,32 @@ int messagebox(lua_State *L) {
     luaL_checkstring(L, 1);
     luaL_checkstring(L, 2);
     luaL_checkinteger(L, 3);
-
-    const int lMessageboxReturn = MessageBoxA(nullptr, lua_tostring(L, 1), lua_tostring(L, 2), lua_tointeger(L, 3));
-
+    auto text = lua_tostring(L, 1);
+    auto caption = lua_tostring(L, 2);
+    auto type = lua_tointeger(L, 3);
+    // No yield
+    const int lMessageboxReturn = MessageBoxA(nullptr, text, caption, type);
     lua_pushinteger(L, lMessageboxReturn);
     return 1;
+    /* Scheduler::get_singleton()->yield_job(L, [text, caption, type](SchedulerYieldContext *yieldContext) {
+         const int lMessageboxReturn = MessageBoxA(nullptr, text, caption, type);
+         yieldContext->bIsWorkCompleted = true;
+         return ([lMessageboxReturn](lua_State *L) {
+             lua_pushinteger(L, lMessageboxReturn);
+             return 1;
+         });
+     });
+
+     return -1;
+     */
 }
 
-int Environment::register_env(lua_State *L, bool useInitScript) {
+static int schedulerKeyV;
+
+int Environment::register_env(lua_State *L, bool useInitScript, _In_ _Out_ int *schedulerKey) {
+    *schedulerKey = rand();
+    schedulerKeyV = *schedulerKey;
+    Scheduler::get_singleton()->set_scheduler_key(schedulerKeyV);
     static const luaL_Reg reg[] = {
             {"enable_environment_instrumentation", enable_environment_instrumentation},
             {"disable_environment_instrumentation", disable_environment_instrumentation},
@@ -889,7 +916,7 @@ int Environment::register_env(lua_State *L, bool useInitScript) {
                  if (auto *scheduler{Scheduler::get_singleton()};
                      scheduler->is_initialized() &&
                      Module::Utilities::is_pointer_valid(scheduler->get_global_executor_state())) {
-                     scheduler->scheduler_step(scheduler->get_global_executor_state());
+                     scheduler->scheduler_step(scheduler->get_global_executor_state(), schedulerKeyV);
                  }
                  return 0;
              }))},
@@ -1116,7 +1143,7 @@ getgenv_c().getscripthash = newcclosure_c(function(instance)
     return instance:GetHash() -- https://robloxapi.github.io/ref/class/Script.html#member-GetHash
 end)
 
-getgenv_c().cloneref = newcclosure_c(function(instance)
+getgenv_c().lcloneref = newcclosure_c(function(instance)
     if typeof_c(instance) ~= "Instance" then
         return error_c("Expected Instance as argument #1, got " .. typeof_c(instance) .. " instead!")
     end
@@ -1462,8 +1489,12 @@ oldIndex = hookmetamethod_c(
         const std::string schedulerHook = (R"(
             game:GetService("RunService").Stepped:Connect(clonefunction(__SCHEDULER_STEPPED__HOOK))
         )");
+        printf("Stepping hook...\n");
         Scheduler::get_singleton()->schedule_job(schedulerHook);
-        Scheduler::get_singleton()->scheduler_step(Scheduler::get_singleton()->get_global_executor_state());
+        printf("Scheduler::step\n");
+        Scheduler::get_singleton()->scheduler_step(Scheduler::get_singleton()->get_global_executor_state(),
+                                                   schedulerKeyV);
+        printf("Init script...\n");
         Scheduler::get_singleton()->schedule_job(initscript);
         Sleep(200);
     }

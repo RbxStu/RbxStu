@@ -3,6 +3,8 @@
 //
 
 #include "Hook.hpp"
+
+#include <Log.hpp>
 #include <lstate.h>
 #include <mutex>
 #include "Closures.hpp"
@@ -102,15 +104,6 @@ void *Hook::pseudo2addr__detour(lua_State *L, int idx) {
             return Hook::get_singleton()->get_pseudo_original()(L, idx);
         }
         if (!ignoreChecks) {
-            if (lua_getglobal(L, "Plugin"); !lua_isnil(L, 1)) { // Check nd pop
-                lua_pop(L, 1);
-                wprintf(L"lua_State* may belong to a plugin! Ignored\r\n");
-                tries++;
-                mutx.unlock();
-                return Hook::get_singleton()->get_pseudo_original()(L, idx);
-            }
-            lua_pop(L, 1);
-
             auto originalTop = lua_gettop(L);
             lua_getglobal(L, "game");
 
@@ -211,13 +204,17 @@ void Hook::wait_until_initialised() {
 }
 
 void Hook::initialize() {
+    Log::get_singleton()->write_to_buffer("Hook", "initialize", "Initializing MinHook");
     MH_Initialize(); // init mh.
 }
 
 MH_STATUS Hook::install_hook() {
-    MH_CreateHook(
-            reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr), pseudo2addr__detour,
-            reinterpret_cast<void **>(const_cast<void *(**) (lua_State *, int32_t)>(&__original__pseudo2addr__hook)));
+    Log::get_singleton()->write_to_buffer("Hook", "initialize", "Installing pseudo2addr hook...");
+
+    MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr), pseudo2addr__detour,
+                  reinterpret_cast<void **>(
+                          const_cast<lua_TValue *(**) (lua_State *, int32_t)>(&__original__pseudo2addr__hook)));
+    Log::get_singleton()->write_to_buffer("Hook", "initialize", "Enabling psuedo2addr hook...");
     return MH_EnableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
 }
 

@@ -1,17 +1,18 @@
 // C
-#include <Windows.h>
 #include <MinHook.h>
 #include <StudioOffsets.h>
+#include <Windows.h>
 // C++
+#include <DbgHelp.h>
+#include <Log.hpp>
 #include <iostream>
 #include <thread>
-#include <DbgHelp.h>
-#include "oxorany.hpp"
 #include "Environment/Environment.hpp"
 #include "Execution.hpp"
-#include "Utilities.hpp"
-#include "Scheduler.hpp"
 #include "Hook.hpp"
+#include "Scheduler.hpp"
+#include "Utilities.hpp"
+#include "oxorany.hpp"
 
 
 long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
@@ -23,17 +24,14 @@ long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
     }
 
     printf("Exception Caught         @ %p\r\n", pExceptionPointers->ContextRecord->Rip);
-    printf("Module.dll               @ %p\r\n",
-           reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
-    printf("Rebased Module           @ 0x%p\r\n", pExceptionPointers->ContextRecord->Rip -
-                                                  reinterpret_cast<std::uintptr_t>(GetModuleHandleA(
-                                                      "Module.dll")));
+    printf("Module.dll               @ %p\r\n", reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
+    printf("Rebased Module           @ 0x%p\r\n",
+           pExceptionPointers->ContextRecord->Rip - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
     printf("RobloxStudioBeta.exe     @ %p\r\n",
            reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
 
     printf("Rebased Studio           @ 0x%p\r\n",
-           pContext->Rip -
-           reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
+           pContext->Rip - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
 
     printf("-- START REGISTERS STATE --\r\n\r\n");
 
@@ -80,22 +78,12 @@ long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
         DWORD value{};
         DWORD *pValue = &value;
         if (SymFromAddr(GetCurrentProcess(), address, nullptr, symbol) && ((*pValue = symbol->Address - address)) &&
-            SymFromAddr(GetCurrentProcess(),
-                        address,
-                        reinterpret_cast<PDWORD64>(pValue),
-                        symbol)) {
-            printf(("[Stack Frame %d] Inside %s @ 0x%p; Studio Rebase: 0x%p\r\n"), i, symbol->Name,
-                   address,
-                   address -
-                   reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) +
-                   0x140000000);
+            SymFromAddr(GetCurrentProcess(), address, reinterpret_cast<PDWORD64>(pValue), symbol)) {
+            printf(("[Stack Frame %d] Inside %s @ 0x%p; Studio Rebase: 0x%p\r\n"), i, symbol->Name, address,
+                   address - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) + 0x140000000);
         } else {
-            printf(("[Stack Frame %d] Unknown Subroutine @ 0x%p; Studio Rebase: 0x%p\r\n"), i,
-                   symbol->Name,
-                   address,
-                   address -
-                   reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) +
-                   0x140000000);
+            printf(("[Stack Frame %d] Unknown Subroutine @ 0x%p; Studio Rebase: 0x%p\r\n"), i, symbol->Name, address,
+                   address - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) + 0x140000000);
         }
     }
     std::cout << std::endl;
@@ -114,7 +102,9 @@ long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
     // Clean up
     SymCleanup(GetCurrentProcess());
     MessageBoxA(nullptr, ("ERROR"), ("ERROR. LOOK AT CLI."), MB_OK);
-    printf("Stack frames captured - Waiting for 30s before exiting... \r\n");
+    printf("Stack frames captured - Waiting for 30s before exiting...\n Log written to disk @ %%APPDATA%%/RbxStu "
+           "\r\n");
+    Log::get_singleton()->flush_to_disk();
     Sleep(30000);
     exit(-1);
     return EXCEPTION_EXECUTE_HANDLER;
@@ -128,6 +118,12 @@ int main(int argc, char **argv, char **envp) {
     AllocConsole();
     freopen_s(reinterpret_cast<FILE **>(stdin), ("CONOUT$"), ("w"), stdout);
     freopen_s(reinterpret_cast<FILE **>(stdin), ("CONIN$"), ("r"), stdin);
+
+    printf("[main] Initializing log writer on exit");
+    atexit([]() {
+        printf("[main::atexit] FLUSHING RBXSTU LOG TO DISK...");
+        Log::get_singleton()->flush_to_disk();
+    });
 
     printf("[main] Initializing hook...\r\n");
     const auto pHook{Hook::get_singleton()};
@@ -144,8 +140,10 @@ int main(int argc, char **argv, char **envp) {
     printf("[main] Initializing environment.\r\n");
     auto scheduler{Scheduler::get_singleton()};
     auto environment = Environment::get_singleton();
-    printf("oxorany(L""[main] Attaching to RunService.Stepped for custom scheduler stepping.\r\n");
-    environment->register_env(scheduler->get_global_executor_state(), true);
+    printf("[main] Attaching to RunService.Stepped for custom scheduler stepping.\r\n");
+
+    auto schedulerKey = 0;
+    environment->register_env(scheduler->get_global_executor_state(), true, &schedulerKey);
     pHook->remove_hook();
 
     std::string buffer{};
@@ -161,13 +159,12 @@ int main(int argc, char **argv, char **envp) {
             scheduler->re_initialize();
             pHook->install_hook();
             pHook->wait_until_initialised();
-            environment->register_env(scheduler->get_global_executor_state(), true);
+            environment->register_env(scheduler->get_global_executor_state(), true, &schedulerKey);
             printf("Attaching to RunService.Stepped for custom scheduler stepping.\r\n");
             pHook->remove_hook();
 
             MessageBoxA(nullptr,
-                        (
-                            "Obtained new lua_State. Scheduler re-initialized and Environment re-registered. Enjoy!"),
+                        ("Obtained new lua_State. Scheduler re-initialized and Environment re-registered. Enjoy!"),
                         ("Reinitialization Completed"), MB_OK);
             continue;
         }
@@ -179,16 +176,14 @@ int main(int argc, char **argv, char **envp) {
     return 0;
 }
 
-BOOL WINAPI DllMain(
-    HINSTANCE hinstDLL, // handle to DLL module
-    const DWORD fdwReason, // reason for calling function
-    const LPVOID lpvReserved) // reserved
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
+                    const DWORD fdwReason, // reason for calling function
+                    const LPVOID lpvReserved) // reserved
 {
     // Perform actions based on the reason for calling.
     switch (fdwReason) {
         case DLL_PROCESS_ATTACH:
-            CreateThread(nullptr, 0x1000,
-                         reinterpret_cast<LPTHREAD_START_ROUTINE>(main), 0, 0, nullptr);
+            CreateThread(nullptr, 0x1000, reinterpret_cast<LPTHREAD_START_ROUTINE>(main), 0, 0, nullptr);
             break;
 
         case DLL_THREAD_ATTACH:
@@ -205,7 +200,7 @@ BOOL WINAPI DllMain(
                 break; // do not do cleanup if process termination scenario
             }
 
-        // Perform any necessary cleanup.
+            // Perform any necessary cleanup.
             break;
     }
     return oxorany(TRUE); // Successful DLL_PROCESS_ATTACH.

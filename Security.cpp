@@ -8,16 +8,6 @@
 #include <cstdio>
 #include <lstate.h>
 
-void RBX::Security::MarkThread(lua_State *L) {
-    // Unsafe operation. Do NOT do.
-    if (L->userdata == nullptr) {
-        // Call lua capabilities to alloc and set,
-        RBX::Security::Bypasses::set_thread_security(L, RBX::Identity::Eight_Seven);
-    }
-    auto *plStateUd = static_cast<RBX::Lua::ExtraSpace *>(L->userdata);
-    plStateUd->executor_thread_mark = 0xff;
-}
-
 int64_t RBX::Security::deobfuscate_identity(RBX::Identity identity) {
     // Some identities are merged, which means that the output doesn't matter truly. We just need to support the highest
     // one.

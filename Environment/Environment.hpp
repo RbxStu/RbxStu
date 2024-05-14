@@ -18,5 +18,5 @@ public:
 
     [[nodiscard]] bool get_instrumentation_status() const;
     void set_instrumentation_status(bool bState);
-    int register_env(lua_State *L, bool useInitScript);
+    int register_env(lua_State *L, bool useInitScript, _In_ _Out_ int *schedulerKey);
 };

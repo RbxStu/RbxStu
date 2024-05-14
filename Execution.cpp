@@ -53,6 +53,6 @@ int Execution::lua_loadstring(lua_State *L, const std::string &code, std::string
     return 1;
 }
 
-int Execution::register_environment(lua_State *L, bool useInitScript) {
-    return Environment::get_singleton()->register_env(L, useInitScript);
+int Execution::register_environment(lua_State *L, bool useInitScript, _In_ _Out_ int *schedulerKey) {
+    return Environment::get_singleton()->register_env(L, useInitScript, schedulerKey);
 }
