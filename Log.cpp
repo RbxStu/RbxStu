@@ -23,6 +23,8 @@ void Log::write_to_buffer(const std::string &moduleName, const std::string &func
                         moduleName, functionName, logContent);
 }
 
+std::string Log::get_log_path() { return this->m_szFileName; }
+
 void Log::flush_to_disk() const {
     std::ofstream ofStream(this->m_szFileName);
     if (!ofStream.is_open()) {

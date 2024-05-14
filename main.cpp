@@ -16,53 +16,55 @@
 
 
 long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
+    const auto function_name = "ExceptionFilter::UnhandledExceptionFilter";
     const auto *pContext = pExceptionPointers->ContextRecord;
-    printf("\r\n-- WARNING: Exception handler caught an exception\r\n");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "WARNING: Exception caught! Exception Code: %lx",
+                            pExceptionPointers->ExceptionRecord->ExceptionCode);
 
-    if (pExceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
-        printf("Exception Identified: EXCEPTION_ACCESS_VIOLATION\r\n");
-    }
+    LOG_TO_FILE_AND_CONSOLE(function_name, "Exception Information:");
 
-    printf("Exception Caught         @ %p\r\n", pExceptionPointers->ContextRecord->Rip);
-    printf("Module.dll               @ %p\r\n", reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
-    printf("Rebased Module           @ 0x%p\r\n",
-           pExceptionPointers->ContextRecord->Rip - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
-    printf("RobloxStudioBeta.exe     @ %p\r\n",
-           reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
+    LOG_TO_FILE_AND_CONSOLE(function_name, "Exception Caught         @ %llx", pExceptionPointers->ContextRecord->Rip);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "Module.dll               @ %llx",
+                            reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
+    LOG_TO_FILE_AND_CONSOLE(function_name, "Rebased Module           @ 0x%llx",
+                            pExceptionPointers->ContextRecord->Rip -
+                                    reinterpret_cast<std::uintptr_t>(GetModuleHandleA("Module.dll")));
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RobloxStudioBeta.exe     @ %llx",
+                            reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
 
-    printf("Rebased Studio           @ 0x%p\r\n",
-           pContext->Rip - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
+    LOG_TO_FILE_AND_CONSOLE(function_name, "Rebased Studio           @ 0x%llx",
+                            pContext->Rip - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")));
 
-    printf("-- START REGISTERS STATE --\r\n\r\n");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "-- START REGISTERS STATE --\r\n");
 
-    printf("-- START GP REGISTERS --\r\n");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "-- START GP REGISTERS --");
 
-    printf("RAX: 0x%p\r\n", pContext->Rax);
-    printf("RBX: 0x%p\r\n", pContext->Rbx);
-    printf("RCX: 0x%p\r\n", pContext->Rcx);
-    printf("RDX: 0x%p\r\n", pContext->Rdx);
-    printf("RDI: 0x%p\r\n", pContext->Rdi);
-    printf("RSI: 0x%p\r\n", pContext->Rsi);
-    printf("-- R8 - R15 --\r\n");
-    printf("R08: 0x%p\r\n", pContext->R8);
-    printf("R09: 0x%p\r\n", pContext->R9);
-    printf("R10: 0x%p\r\n", pContext->R10);
-    printf("R11: 0x%p\r\n", pContext->R11);
-    printf("R12: 0x%p\r\n", pContext->R12);
-    printf("R13: 0x%p\r\n", pContext->R13);
-    printf("R14: 0x%p\r\n", pContext->R14);
-    printf("R15: 0x%p\r\n", pContext->R15);
-    printf("-- END GP REGISTERS --\r\n\r\n");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RAX: 0x%llx", pContext->Rax);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RBX: 0x%llx", pContext->Rbx);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RCX: 0x%llx", pContext->Rcx);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RDX: 0x%llx", pContext->Rdx);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RDI: 0x%llx", pContext->Rdi);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RSI: 0x%llx", pContext->Rsi);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "-- R8 - R15 --");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "R08: 0x%llx", pContext->R8);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "R09: 0x%llx", pContext->R9);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "R10: 0x%llx", pContext->R10);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "R11: 0x%llx", pContext->R11);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "R12: 0x%llx", pContext->R12);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "R13: 0x%llx", pContext->R13);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "R14: 0x%llx", pContext->R14);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "R15: 0x%llx", pContext->R15);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "-- END GP REGISTERS --\r\n");
 
-    printf("-- START STACK POINTERS --\r\n");
-    printf("RBP: 0x%p\r\n", pContext->Rbp);
-    printf("RSP: 0x%p\r\n", pContext->Rsp);
-    printf("-- END STACK POINTERS --\r\n\r\n");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "-- START STACK POINTERS --");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RBP: 0x%llx", pContext->Rbp);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "RSP: 0x%llx", pContext->Rsp);
+    LOG_TO_FILE_AND_CONSOLE(function_name, "-- END STACK POINTERS --\r\n");
 
-    printf("-- END REGISTERS STATE --\r\n\r\n");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "-- END REGISTERS STATE --\r\n");
 
 
-    printf("    -- Stack Trace:\r\n");
+    LOG_TO_FILE_AND_CONSOLE(function_name, "-- Stack Trace:");
     SymInitialize(GetCurrentProcess(), nullptr, TRUE);
 
     void *stack[256];
@@ -79,11 +81,14 @@ long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
         DWORD *pValue = &value;
         if (SymFromAddr(GetCurrentProcess(), address, nullptr, symbol) && ((*pValue = symbol->Address - address)) &&
             SymFromAddr(GetCurrentProcess(), address, reinterpret_cast<PDWORD64>(pValue), symbol)) {
-            printf(("[Stack Frame %d] Inside %s @ 0x%p; Studio Rebase: 0x%p\r\n"), i, symbol->Name, address,
-                   address - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) + 0x140000000);
+            LOG_TO_FILE_AND_CONSOLE(
+                    function_name, "[Stack Frame %d] Inside %s @ 0x%llx; Studio Rebase: 0x%llx", i, symbol->Name, address,
+                    address - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) + 0x140000000);
         } else {
-            printf(("[Stack Frame %d] Unknown Subroutine @ 0x%p; Studio Rebase: 0x%p\r\n"), i, symbol->Name, address,
-                   address - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) + 0x140000000);
+            LOG_TO_FILE_AND_CONSOLE(
+                    function_name, "[Stack Frame %d] Unknown Subroutine @ 0x%llx; Studio Rebase: 0x%llx", i, symbol->Name,
+                    address,
+                    address - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) + 0x140000000);
         }
     }
     std::cout << std::endl;
@@ -97,13 +102,15 @@ long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
         }
     }
 
-    std::cout << sstream.str();
+    LOG_TO_FILE_AND_CONSOLE(function_name, "%s", sstream.str().c_str());
 
     // Clean up
     SymCleanup(GetCurrentProcess());
-    MessageBoxA(nullptr, ("ERROR"), ("ERROR. LOOK AT CLI."), MB_OK);
-    printf("Stack frames captured - Waiting for 30s before exiting...\n Log written to disk @ %%APPDATA%%/RbxStu "
-           "\r\n");
+    LOG_TO_FILE_AND_CONSOLE(
+            function_name,
+            "Stack frames captured. Log flushed to disk as file '%s'! Send to developer for more information! Roblox "
+            "Studio will now close, this is NOT a Studio Bug! It is probably caused by RbxStu!",
+            Log::get_singleton()->get_log_path().c_str());
     Log::get_singleton()->flush_to_disk();
     Sleep(30000);
     exit(-1);
@@ -119,29 +126,25 @@ int main(int argc, char **argv, char **envp) {
     freopen_s(reinterpret_cast<FILE **>(stdin), ("CONOUT$"), ("w"), stdout);
     freopen_s(reinterpret_cast<FILE **>(stdin), ("CONIN$"), ("r"), stdin);
 
-    printf("[main] Initializing log writer on exit");
-    atexit([]() {
-        printf("[main::atexit] FLUSHING RBXSTU LOG TO DISK...");
+    LOG_TO_FILE_AND_CONSOLE("main", "Initializing log writer on exit");
+    atexit([] {
+        LOG_TO_FILE_AND_CONSOLE("main::reinit", "Flushing log to disk...");
         Log::get_singleton()->flush_to_disk();
     });
-
-    printf("[main] Initializing hook...\r\n");
+    LOG_TO_FILE_AND_CONSOLE("main", "Initializing hook...");
     const auto pHook{Hook::get_singleton()};
 
     pHook->initialize();
-    printf("[main] Attached to RBX::Studio::Lua::freeblock for call instrumentation and for anti-crashing.\r\n");
     pHook->install_additional_hooks();
     Sleep(500);
     pHook->install_hook();
     pHook->wait_until_initialised();
 
-    printf("[main] Hook initialized. State grabbed.\r\n");
+    LOG_TO_FILE_AND_CONSOLE("main", "Hook initialization completed. lua_State* obtained.");
 
-    printf("[main] Initializing environment.\r\n");
+    LOG_TO_FILE_AND_CONSOLE("main", "Initializing executor environment...");
     auto scheduler{Scheduler::get_singleton()};
     auto environment = Environment::get_singleton();
-    printf("[main] Attaching to RunService.Stepped for custom scheduler stepping.\r\n");
-
     auto schedulerKey = 0;
     environment->register_env(scheduler->get_global_executor_state(), true, &schedulerKey);
     pHook->remove_hook();
@@ -153,19 +156,15 @@ int main(int argc, char **argv, char **envp) {
         printf("\r\n[main] Input lua code: ");
         getline(std::cin, buffer);
         if (strcmp(buffer.c_str(), "reinit()") == 0) {
-            printf("[main::reinit] Detected reinitialization request! Re-Initializing...\r\n");
-            printf("[main::reinit] Running re-init...\r\n");
+            LOG_TO_FILE_AND_CONSOLE("main::reinit", "Re-Initializing execution environment.");
 
             scheduler->re_initialize();
             pHook->install_hook();
             pHook->wait_until_initialised();
             environment->register_env(scheduler->get_global_executor_state(), true, &schedulerKey);
-            printf("Attaching to RunService.Stepped for custom scheduler stepping.\r\n");
             pHook->remove_hook();
 
-            MessageBoxA(nullptr,
-                        ("Obtained new lua_State. Scheduler re-initialized and Environment re-registered. Enjoy!"),
-                        ("Reinitialization Completed"), MB_OK);
+            LOG_TO_FILE_AND_CONSOLE("main::reinit", "Re-Initialization successful!");
             continue;
         }
         printf("\r\nPushing to StudioExecutor::Scheduler...\r\n");

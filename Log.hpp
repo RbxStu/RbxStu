@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <string>
 
+// TODO: Fix bug where data is NOT logged to the log file, rather pure strings.
+
 #define LOG_TO_FILE_AND_CONSOLE(fname, msg, ...)                                                                       \
     (Log::get_singleton()->write_to_buffer(__FILE__, fname, msg));                                                     \
     (printf("[%s::%s] " msg "\r\n", __FILE__, fname, __VA_ARGS__))
@@ -23,14 +25,14 @@ class Log {
         std::filesystem::create_directories(folder);
         this->m_szFileName = std::format("{}\\RbxStu\\RbxStuLog-{}.log", buf,
                                          (std::format("{:%d-%m-%Y_%H.%M.%S}", std::chrono::system_clock::now())));
-
-        printf("%s -> filename for log \n", this->m_szFileName.c_str());
     };
 
 public:
     static Log *get_singleton();
 
     void write_to_buffer(const std::string &moduleName, const std::string &functionName, const std::string &logContent);
+
+    std::string get_log_path();
 
     void flush_to_disk() const;
 };
