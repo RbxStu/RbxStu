@@ -6,6 +6,10 @@
 #include <filesystem>
 #include <string>
 
+#define LOG_TO_FILE_AND_CONSOLE(fname, msg, ...)                                                                       \
+    (Log::get_singleton()->write_to_buffer(__FILE__, fname, msg));                                                     \
+    (printf("[%s::%s] " msg "\r\n", __FILE__, fname, __VA_ARGS__))
+
 /// Logger class.
 class Log {
     static Log *sm_singleton;
