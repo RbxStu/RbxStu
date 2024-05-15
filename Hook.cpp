@@ -193,33 +193,39 @@ FunctionTypes::rFreeBlock Hook::get_freeblock_original() const { return this->__
 FunctionTypes::pseudo2addr Hook::get_pseudo_original() const { return this->__original__pseudo2addr__hook; }
 
 MH_STATUS Hook::remove_hook() const {
+    LOG_TO_FILE_AND_CONSOLE("remove_hook", "Disabling pseudo2addr hook...");
     return MH_DisableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
 }
 
 void Hook::wait_until_initialised() {
     const auto scheduler{Scheduler::get_singleton()};
+    LOG_TO_FILE_AND_CONSOLE("wait_until_initialised", "Spin locking until Scheduler is initialized...");
     do {
         std::this_thread::sleep_for(std::chrono::milliseconds(96));
     } while (!scheduler->is_initialized());
+
+    LOG_TO_FILE_AND_CONSOLE("wait_until_initialised", "Scheduler has been initialized.");
 }
 
 void Hook::initialize() {
-    Log::get_singleton()->write_to_buffer("Hook", "initialize", "Initializing MinHook");
+    LOG_TO_FILE_AND_CONSOLE("initialize", "Initializing MinHook");
     MH_Initialize(); // init mh.
 }
 
 MH_STATUS Hook::install_hook() {
-    Log::get_singleton()->write_to_buffer("Hook", "initialize", "Installing pseudo2addr hook...");
+    LOG_TO_FILE_AND_CONSOLE("install_hook", "Installing pseudo2addr hook...");
 
     MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr), pseudo2addr__detour,
                   reinterpret_cast<void **>(
                           const_cast<lua_TValue *(**) (lua_State *, int32_t)>(&__original__pseudo2addr__hook)));
-    Log::get_singleton()->write_to_buffer("Hook", "initialize", "Enabling psuedo2addr hook...");
+    LOG_TO_FILE_AND_CONSOLE("install_hook", "Enabling psuedo2addr hook...");
     return MH_EnableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::pseudo2addr));
 }
 
 MH_STATUS Hook::install_additional_hooks() {
+    LOG_TO_FILE_AND_CONSOLE("install_additional_hooks", "Installing freeblock hook...");
     MH_CreateHook(reinterpret_cast<void *>(RBX::Studio::Offsets::rFreeBlock), freeblock__detour,
                   reinterpret_cast<LPVOID *>(&this->__original__freeblock__hook));
+    LOG_TO_FILE_AND_CONSOLE("install_additional_hooks", "Enabling freeblock hook...");
     return MH_EnableHook(reinterpret_cast<void *>(RBX::Studio::Offsets::rFreeBlock));
 }

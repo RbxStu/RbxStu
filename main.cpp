@@ -82,12 +82,13 @@ long exception_filter(PEXCEPTION_POINTERS pExceptionPointers) {
         if (SymFromAddr(GetCurrentProcess(), address, nullptr, symbol) && ((*pValue = symbol->Address - address)) &&
             SymFromAddr(GetCurrentProcess(), address, reinterpret_cast<PDWORD64>(pValue), symbol)) {
             LOG_TO_FILE_AND_CONSOLE(
-                    function_name, "[Stack Frame %d] Inside %s @ 0x%llx; Studio Rebase: 0x%llx", i, symbol->Name, address,
+                    function_name, "[Stack Frame %d] Inside %s @ 0x%llx; Studio Rebase: 0x%llx", i, symbol->Name,
+                    address,
                     address - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) + 0x140000000);
         } else {
             LOG_TO_FILE_AND_CONSOLE(
-                    function_name, "[Stack Frame %d] Unknown Subroutine @ 0x%llx; Studio Rebase: 0x%llx", i, symbol->Name,
-                    address,
+                    function_name, "[Stack Frame %d] Unknown Subroutine @ 0x%llx; Studio Rebase: 0x%llx", i,
+                    symbol->Name, address,
                     address - reinterpret_cast<std::uintptr_t>(GetModuleHandleA("RobloxStudioBeta.exe")) + 0x140000000);
         }
     }
