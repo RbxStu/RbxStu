@@ -6,11 +6,14 @@
 #include <filesystem>
 #include <string>
 
-// TODO: Fix bug where data is NOT logged to the log file, rather pure strings.
-
 #define LOG_TO_FILE_AND_CONSOLE(fname, msg, ...)                                                                       \
-    (Log::get_singleton()->write_to_buffer(__FILE__, fname, msg));                                                     \
-    (printf("[%s::%s] " msg "\r\n", __FILE__, fname, __VA_ARGS__))
+    {                                                                                                                 \
+        auto buf = static_cast<char *>(malloc(strlen(msg) * 4));                                                       \
+        sprintf_s(buf, strlen(msg) * 4, msg, __VA_ARGS__);                                                             \
+        (Log::get_singleton()->write_to_buffer(__FILE__, fname, buf));                                            \
+        (printf("[%s::%s] " msg "\r\n", __FILE__, fname, __VA_ARGS__));                                                \
+        free(buf);                                                                                                     \
+    }
 
 /// Logger class.
 class Log {
