@@ -201,7 +201,7 @@ void Hook::wait_until_initialised() {
     const auto scheduler{Scheduler::get_singleton()};
     LOG_TO_FILE_AND_CONSOLE("wait_until_initialised", "Spin locking until Scheduler is initialized...");
     do {
-        std::this_thread::sleep_for(std::chrono::milliseconds(96));
+        _mm_pause();
     } while (!scheduler->is_initialized());
 
     LOG_TO_FILE_AND_CONSOLE("wait_until_initialised", "Scheduler has been initialized.");

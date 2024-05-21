@@ -458,13 +458,7 @@ int isrbxactive(lua_State *L) {
     if (Environment::get_singleton()->get_instrumentation_status()) {
         printf("--- isrbxactive invoked ---\r\n");
     }
-    char buf[0xff];
-    if (GetWindowTextA(GetForegroundWindow(), buf, sizeof(buf))) {
-        lua_pushboolean(L, strstr(buf, "Roblox Studio") != nullptr);
-    } else {
-        lua_pushboolean(L, false);
-    }
-
+    lua_pushboolean(L, GetForegroundWindow() == GetCurrentProcess());
     return 1;
 }
 
