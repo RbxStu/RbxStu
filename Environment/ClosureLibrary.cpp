@@ -228,6 +228,28 @@ int hookfunction(lua_State *L) {
         return 1;
     }
 
+    if (!closures->IsCClosureHandler(toHook) && !closures->IsCClosureHandler(hookWith)) {
+        // Simple C->C hooking.
+        const auto cl = closures->CloneClosure(L, toHook); // Clone original Closure.
+
+        // Not required, we are wrapping using newcclosure, and upvalues do not matter thanks to this.
+        // if (toHook->nupvalues < hookWith->nupvalues)
+        //    luaG_runerror(L, "Hookfunction: Cannot hook. Too many upvalues.\r\n");
+
+        toHook->c.f = []([[maybe_unused]] lua_State *L) -> int { return 0; };
+        /* we don't wanna break while we set upvalues */
+        for (int i = 0; i < hookWith->nupvalues; i++)
+            setobj2n(L, &toHook->c.upvals[i], &hookWith->c.upvals[i]);
+
+        toHook->nupvalues = hookWith->nupvalues;
+        toHook->c.f = NewCClosureHandler; // Newcclosure handler.
+        closures->AddWrappedClosure(toHook, hookWith);
+        L->top->value.p = const_cast<Closure *>(cl);
+        L->top->tt = LUA_TFUNCTION;
+        L->top++;
+        return 1;
+    }
+
     printf("hookf: Not implemented\r\n");
     lua_pushnil(L); // Should never happen, but in the remote case it does... uhmmm, cope!
     return 1;
