@@ -1156,7 +1156,7 @@ end)
 getgenv_c().GetObjects = newcclosure_c(function(assetId)
 	local oldId = getIdentity_c()
 	setIdentity_c(8)
-	local obj = insertservice_LoadLocalAsset(game_getservice(game, "InsertService"), assetId)
+	local obj = { insertservice_LoadLocalAsset(game_getservice(game, "InsertService"), assetId) }
 	setIdentity_c(oldId)
 	return obj
 end)
