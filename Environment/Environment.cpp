@@ -1331,7 +1331,8 @@ local illegal = {
     "EmitHybridEvent",
     "AddCoreScriptLocal",
     "HttpRequestAsync",
-    "ReportAbuse"   -- Avoid bans. | Handles ReportAbuseV3
+    "ReportAbuse",   -- Avoid bans. | Handles ReportAbuseV3
+    "SaveScriptProfilingData"
 }
 
 local bannedServices = {
@@ -1339,7 +1340,8 @@ local bannedServices = {
     "HttpRbxApiService",
     "OpenCloudService",
     "MessageBusService",
-    "OmniRecommendationsService"
+    "OmniRecommendationsService",
+    "LinkingService"
 }
 
 local oldNamecall
@@ -1370,9 +1372,9 @@ oldNamecall = hookmetamethod_c(
             end
             consoleprint_c(reconstruct_table(args))
 
-            consoleprint_c("----------------------------------------")
-            consoleprint_c("--- END __INDEX INSTRUMENTATION CALL ---")
-            consoleprint_c("----------------------------------------")
+            consoleprint_c("-------------------------------------------")
+            consoleprint_c("--- END __NAMECALL INSTRUMENTATION CALL ---")
+            consoleprint_c("-------------------------------------------")
         end
 
 		-- If we did a simple table find, as simple as a \0 at the end of the string would bypass our security.
@@ -1383,7 +1385,7 @@ oldNamecall = hookmetamethod_c(
 			end
 		end
 
-        if string_match(string_lower(namecallName), string_lower("GetService")) then
+        if string_match(string_lower(namecallName), string_lower("GetService")) or string_match(string_lower(namecallName), string_lower("FindService")) then
             -- GetService, check for banned services
             for _, str in pairs_c(bannedServices) do
 			    if string_match(string_lower(select_c(2, ...)), string_lower(str)) then
@@ -1450,7 +1452,7 @@ oldIndex = hookmetamethod_c(
 			end
 		end
 
-        if string_match(string_lower(idx), string_lower("GetService")) then
+        if string_match(string_lower(idx), string_lower("GetService")) or string_match(string_lower(idx), string_lower("FindService")) then
             -- Hook GetService, this can be bypassed, but probably no one will bother to, and if they do... too bad.
             return newcclosure(function(s, svc)
                 return s:GetService(svc)
