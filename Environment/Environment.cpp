@@ -1332,7 +1332,10 @@ local illegal = {
     "AddCoreScriptLocal",
     "HttpRequestAsync",
     "ReportAbuse",   -- Avoid bans. | Handles ReportAbuseV3
-    "SaveScriptProfilingData"
+    "SaveScriptProfilingData",
+    "OpenUrl"
+    "DeleteCapture",
+    "DeleteCapturesAsync"
 }
 
 local bannedServices = {
@@ -1341,7 +1344,8 @@ local bannedServices = {
     "OpenCloudService",
     "MessageBusService",
     "OmniRecommendationsService",
-    "LinkingService"
+    "LinkingService",
+    "CaptureService"
 }
 
 local oldNamecall
