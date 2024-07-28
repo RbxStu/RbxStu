@@ -1345,7 +1345,8 @@ local bannedServices = {
     "MessageBusService",
     "OmniRecommendationsService",
     "LinkingService",
-    "CaptureService"
+    "CaptureService",
+    "CorePackages"
 }
 
 local oldNamecall
