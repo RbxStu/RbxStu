@@ -1,7 +1,7 @@
 # Studio Executor
 
 # This project has been archived as it is on EOL. 
-### This project has been continued in [RbxStu V2](https://github.com/RbxStu/RbxStu-V2/)
+### This project has been continued in RbxStu V2, however RbxStu V2 works in a request access basis, you must request access to use RbxStu V2 on our Discord Server
 
 A Luau executor for Roblox Studio which contains functions for pentesting your own games.
 This tool works inside Team Tests and Local Tests, allowing you to interact with other teammates (Or with yourself)
